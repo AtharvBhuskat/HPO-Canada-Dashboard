@@ -116,3 +116,29 @@ export async function postToFacebookPage(
   const data = await res.json()
   return `https://www.facebook.com/${data.id}`
 }
+
+export async function postPhotoToFacebookPage(
+  message: string,
+  image: File
+): Promise<string> {
+  const page = getFacebookPage()
+  if (!page) throw new Error('No Facebook Page connected')
+
+  const formData = new FormData()
+  formData.append('source', image)
+  formData.append('message', message)
+  formData.append('access_token', page.access_token)
+
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${page.id}/photos`,
+    { method: 'POST', body: formData }
+  )
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to upload photo to Facebook')
+  }
+
+  const data = await res.json()
+  return `https://www.facebook.com/${page.id}/photos/${data.id}`
+}
