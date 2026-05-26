@@ -5,6 +5,7 @@ import PlatformIcon from '../components/PlatformIcon'
 import ConfirmModal from '../components/ConfirmModal'
 import YouTubeUploadModal from '../components/YouTubeUploadModal'
 import { getOAuthURL, isConnected, clearTokens } from '../lib/youtube'
+import { getFacebookOAuthURL, isFacebookConnected, clearFacebookTokens } from '../lib/facebook'
 import dayjs from 'dayjs'
 
 const ALL_PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'youtube']
@@ -30,6 +31,7 @@ export default function SocialAccounts() {
   const [disconnecting, setDisconnecting] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
   const [ytConnected, setYtConnected] = useState(isConnected())
+  const [fbConnected, setFbConnected] = useState(isFacebookConnected())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -52,6 +54,9 @@ export default function SocialAccounts() {
       if (disconnectTarget === 'youtube') {
         clearTokens()
         setYtConnected(false)
+      } else if (disconnectTarget === 'facebook') {
+        clearFacebookTokens()
+        setFbConnected(false)
       } else {
         await disconnectSocialAccount(disconnectTarget)
         load()
@@ -62,8 +67,11 @@ export default function SocialAccounts() {
     }
   }
 
-  const isYouTubeConnected = (platform: Platform) =>
-    platform === 'youtube' ? ytConnected : (accounts[platform]?.connected ?? false)
+  const isYouTubeConnected = (platform: Platform) => {
+    if (platform === 'youtube') return ytConnected
+    if (platform === 'facebook') return fbConnected
+    return accounts[platform]?.connected ?? false
+  }
 
   return (
     <div className="p-8">
@@ -130,6 +138,12 @@ export default function SocialAccounts() {
                     <p className="text-xs text-zinc-500 mt-0.5">Ready to upload videos</p>
                   </div>
                 )}
+                {connected && platform === 'facebook' && (
+                  <div className="mb-4 bg-[#111] rounded-lg px-3 py-2.5 border border-[#2a2a2a]">
+                    <p className="text-sm text-green-400 font-medium">Facebook page connected</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Ready to post content</p>
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   {connected ? (
@@ -153,16 +167,19 @@ export default function SocialAccounts() {
                     </>
                   ) : (
                     <button
-                      onClick={() => platform === 'youtube' ? window.location.href = getOAuthURL() : undefined}
-                      disabled={platform !== 'youtube'}
-                      title={platform !== 'youtube' ? 'OAuth URL coming soon' : 'Connect YouTube'}
+                      onClick={() => {
+                        if (platform === 'youtube') window.location.href = getOAuthURL()
+                        else if (platform === 'facebook') window.location.href = getFacebookOAuthURL()
+                      }}
+                      disabled={platform !== 'youtube' && platform !== 'facebook'}
+                      title={platform !== 'youtube' && platform !== 'facebook' ? 'OAuth URL coming soon' : `Connect ${platformLabels[platform]}`}
                       className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                        platform === 'youtube'
+                        platform === 'youtube' || platform === 'facebook'
                           ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 cursor-pointer'
                           : 'bg-red-600/20 text-red-400 border border-red-600/30 opacity-60 cursor-not-allowed'
                       }`}
                     >
-                      {platform === 'youtube' ? 'Connect YouTube' : 'Connect (Coming Soon)'}
+                      {platform === 'youtube' || platform === 'facebook' ? `Connect ${platformLabels[platform]}` : 'Connect (Coming Soon)'}
                     </button>
                   )}
                 </div>

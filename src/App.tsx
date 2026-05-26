@@ -8,13 +8,15 @@ import Inbox from './pages/Inbox'
 import Leads from './pages/Leads'
 import Settings from './pages/Settings'
 import YouTubeCallback from './pages/YouTubeCallback'
+import FacebookCallback from './pages/FacebookCallback'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* OAuth callback — no sidebar */}
+        {/* OAuth callbacks — no sidebar */}
         <Route path="/auth/youtube" element={<YouTubeCallback />} />
+        <Route path="/auth/facebook" element={<FacebookCallback />} />
 
         {/* Main app — with sidebar */}
         <Route path="*" element={
