@@ -1,47 +1,86 @@
 import { useState, useRef } from 'react'
-import { postToFacebookPage, postPhotoToFacebookPage, getFacebookPage } from '../lib/facebook'
+import {
+  postToFacebookPage,
+  postPhotoToFacebookPage,
+  postMultiplePhotosToFacebookPage,
+  postVideoToFacebookPage,
+  getFacebookPage,
+} from '../lib/facebook'
 
 interface Props {
   onClose: () => void
 }
 
-type PostType = 'text' | 'photo'
+type PostType = 'text' | 'photo' | 'multi' | 'video'
+
+const TABS: { key: PostType; label: string; icon: string }[] = [
+  { key: 'text',  label: 'Text',        icon: '✏️' },
+  { key: 'photo', label: 'Photo',       icon: '🖼️' },
+  { key: 'multi', label: 'Multi-Photo', icon: '🗃️' },
+  { key: 'video', label: 'Video',       icon: '🎬' },
+]
 
 export default function FacebookPostModal({ onClose }: Props) {
   const [postType, setPostType] = useState<PostType>('text')
   const [message, setMessage] = useState('')
   const [link, setLink] = useState('')
   const [image, setImage] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [multiImages, setMultiImages] = useState<File[]>([])
+  const [multiPreviews, setMultiPreviews] = useState<string[]>([])
+  const [video, setVideo] = useState<File | null>(null)
+  const [videoTitle, setVideoTitle] = useState('')
+  const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState<'idle' | 'posting' | 'done' | 'error'>('idle')
   const [postUrl, setPostUrl] = useState('')
   const [error, setError] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
+
+  const photoRef = useRef<HTMLInputElement>(null)
+  const multiRef = useRef<HTMLInputElement>(null)
+  const videoRef = useRef<HTMLInputElement>(null)
   const page = getFacebookPage()
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImage(file)
-    setPreview(URL.createObjectURL(file))
+  const handleSingleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setImage(f)
+    setImagePreview(URL.createObjectURL(f))
   }
 
-  const removeImage = () => {
-    setImage(null)
-    setPreview(null)
-    if (fileRef.current) fileRef.current.value = ''
+  const handleMultiImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).slice(0, 10)
+    setMultiImages(files)
+    setMultiPreviews(files.map(f => URL.createObjectURL(f)))
+  }
+
+  const removeMultiImage = (i: number) => {
+    setMultiImages(prev => prev.filter((_, idx) => idx !== i))
+    setMultiPreviews(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setVideo(f)
+    if (!videoTitle) setVideoTitle(f.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '))
   }
 
   const handlePost = async () => {
-    if (!message.trim()) return
+    if (!message.trim() && postType !== 'video') return
+    if (postType === 'video' && !video) return
     setStatus('posting')
+    setProgress(0)
     setError('')
     try {
       let url = ''
-      if (postType === 'photo' && image) {
-        url = await postPhotoToFacebookPage(message, image)
-      } else {
+      if (postType === 'text') {
         url = await postToFacebookPage(message, link || undefined)
+      } else if (postType === 'photo' && image) {
+        url = await postPhotoToFacebookPage(message, image)
+      } else if (postType === 'multi' && multiImages.length > 0) {
+        url = await postMultiplePhotosToFacebookPage(message, multiImages)
+      } else if (postType === 'video' && video) {
+        url = await postVideoToFacebookPage(videoTitle, message, video, setProgress)
       }
       setPostUrl(url)
       setStatus('done')
@@ -51,13 +90,17 @@ export default function FacebookPostModal({ onClose }: Props) {
     }
   }
 
-  const canPost = message.trim() && !!page && status !== 'posting' &&
-    (postType === 'text' || (postType === 'photo' && !!image))
+  const canPost = !!page && status !== 'posting' && (
+    (postType === 'text' && message.trim() !== '') ||
+    (postType === 'photo' && !!image && message.trim() !== '') ||
+    (postType === 'multi' && multiImages.length > 0 && message.trim() !== '') ||
+    (postType === 'video' && !!video && videoTitle.trim() !== '')
+  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/75" onClick={status !== 'posting' ? onClose : undefined} />
-      <div className="relative bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
@@ -73,115 +116,184 @@ export default function FacebookPostModal({ onClose }: Props) {
         </div>
 
         {status === 'done' ? (
-          <div className="text-center py-4">
+          <div className="text-center py-6">
             <div className="w-14 h-14 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-7 h-7 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
             <p className="text-white font-semibold mb-1">Posted to Facebook!</p>
-            <p className="text-zinc-500 text-sm mb-4">Your post is now live on your page</p>
-            <a
-              href={postUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-sm rounded-lg font-medium transition-colors mb-3"
-            >
+            <p className="text-zinc-500 text-sm mb-5">Your post is now live on your page</p>
+            <a href={postUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-sm rounded-lg font-medium transition-colors mb-3">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
               View on Facebook
             </a>
             <br />
-            <button onClick={onClose} className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors">Close</button>
+            <button onClick={onClose} className="text-sm text-zinc-500 hover:text-zinc-300 mt-2">Close</button>
           </div>
         ) : (
           <>
             {/* Post type tabs */}
-            <div className="flex gap-1 bg-[#111] rounded-xl p-1 border border-[#2a2a2a] mb-5">
-              {([
-                { key: 'text', label: 'Text / Link', icon: '✏️' },
-                { key: 'photo', label: 'Photo', icon: '🖼️' },
-              ] as const).map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setPostType(t.key)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+            <div className="grid grid-cols-4 gap-1 bg-[#111] rounded-xl p-1 border border-[#2a2a2a] mb-5">
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => setPostType(t.key)}
+                  className={`py-2 text-xs font-medium rounded-lg transition-colors ${
                     postType === t.key ? 'bg-[#1877F2] text-white' : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  {t.icon} {t.label}
+                  }`}>
+                  <div>{t.icon}</div>
+                  <div>{t.label}</div>
                 </button>
               ))}
             </div>
 
-            {/* Message */}
-            <div className="mb-4">
-              <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">
-                {postType === 'photo' ? 'Caption' : 'Message'}
-              </label>
-              <textarea
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                placeholder={postType === 'photo' ? 'Write a caption for your photo...' : 'Write your Facebook post...'}
-                rows={4}
-                className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-[#1877F2] transition-colors"
-              />
-              <p className="text-xs text-zinc-600 mt-1 text-right">{message.length} characters</p>
-            </div>
-
-            {/* Text post: optional link */}
+            {/* TEXT */}
             {postType === 'text' && (
-              <div className="mb-5">
-                <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Link (Optional)</label>
-                <input
-                  type="url"
-                  value={link}
-                  onChange={e => setLink(e.target.value)}
-                  placeholder="https://hpocanada.com/blog/..."
-                  className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#1877F2] transition-colors"
-                />
-              </div>
+              <>
+                <div className="mb-4">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Message</label>
+                  <textarea value={message} onChange={e => setMessage(e.target.value)}
+                    placeholder="Write your post..." rows={5}
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-[#1877F2] transition-colors" />
+                  <p className="text-xs text-zinc-600 mt-1 text-right">{message.length} chars</p>
+                </div>
+                <div className="mb-5">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Link (Optional)</label>
+                  <input type="url" value={link} onChange={e => setLink(e.target.value)}
+                    placeholder="https://hpocanada.com/blog/..."
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#1877F2] transition-colors" />
+                </div>
+              </>
             )}
 
-            {/* Photo post: image picker */}
+            {/* SINGLE PHOTO */}
             {postType === 'photo' && (
-              <div className="mb-5">
-                <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Image</label>
-                {preview ? (
-                  <div className="relative">
-                    <img
-                      src={preview}
-                      alt="Preview"
-                      className="w-full h-48 object-cover rounded-xl border border-[#2a2a2a]"
-                    />
-                    <button
-                      onClick={removeImage}
-                      className="absolute top-2 right-2 w-7 h-7 bg-black/70 hover:bg-black rounded-full flex items-center justify-center text-white transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <>
+                <div className="mb-4">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Caption</label>
+                  <textarea value={message} onChange={e => setMessage(e.target.value)}
+                    placeholder="Write a caption..." rows={3}
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-[#1877F2] transition-colors" />
+                </div>
+                <div className="mb-5">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Photo</label>
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img src={imagePreview} alt="Preview" className="w-full h-44 object-cover rounded-xl border border-[#2a2a2a]" />
+                      <button onClick={() => { setImage(null); setImagePreview(null) }}
+                        className="absolute top-2 right-2 w-7 h-7 bg-black/70 hover:bg-black rounded-full flex items-center justify-center text-white">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <div onClick={() => photoRef.current?.click()}
+                      className="border-2 border-dashed border-[#2a2a2a] hover:border-[#1877F2]/50 rounded-xl p-8 text-center cursor-pointer transition-colors">
+                      <svg className="w-8 h-8 text-zinc-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                    </button>
-                    <div className="mt-2 px-1">
-                      <p className="text-xs text-zinc-500 truncate">{image?.name}</p>
-                      <p className="text-xs text-zinc-600">{image ? (image.size / 1024 / 1024).toFixed(1) + ' MB' : ''}</p>
+                      <p className="text-zinc-400 text-sm">Click to select a photo</p>
+                      <p className="text-zinc-600 text-xs mt-1">JPG, PNG, GIF</p>
+                    </div>
+                  )}
+                  <input ref={photoRef} type="file" accept="image/*" onChange={handleSingleImage} className="hidden" />
+                </div>
+              </>
+            )}
+
+            {/* MULTI PHOTO */}
+            {postType === 'multi' && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Caption</label>
+                  <textarea value={message} onChange={e => setMessage(e.target.value)}
+                    placeholder="Write a caption for all photos..." rows={3}
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-[#1877F2] transition-colors" />
+                </div>
+                <div className="mb-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs text-zinc-500 uppercase tracking-wider">Photos (up to 10)</label>
+                    <button onClick={() => multiRef.current?.click()}
+                      className="text-xs text-[#1877F2] hover:text-[#166fe5] transition-colors">+ Add Photos</button>
+                  </div>
+                  {multiPreviews.length > 0 ? (
+                    <div className="grid grid-cols-5 gap-1.5 mb-2">
+                      {multiPreviews.map((src, i) => (
+                        <div key={i} className="relative aspect-square">
+                          <img src={src} alt="" className="w-full h-full object-cover rounded-lg border border-[#2a2a2a]" />
+                          <button onClick={() => removeMultiImage(i)}
+                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white">
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div onClick={() => multiRef.current?.click()}
+                      className="border-2 border-dashed border-[#2a2a2a] hover:border-[#1877F2]/50 rounded-xl p-8 text-center cursor-pointer transition-colors">
+                      <svg className="w-8 h-8 text-zinc-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="text-zinc-400 text-sm">Click to select photos</p>
+                      <p className="text-zinc-600 text-xs mt-1">Up to 10 images</p>
+                    </div>
+                  )}
+                  <input ref={multiRef} type="file" accept="image/*" multiple onChange={handleMultiImages} className="hidden" />
+                </div>
+              </>
+            )}
+
+            {/* VIDEO */}
+            {postType === 'video' && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Video Title</label>
+                  <input type="text" value={videoTitle} onChange={e => setVideoTitle(e.target.value)}
+                    placeholder="Video title"
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#1877F2] transition-colors" />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Description</label>
+                  <textarea value={message} onChange={e => setMessage(e.target.value)}
+                    placeholder="Describe your video..." rows={3}
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-[#1877F2] transition-colors" />
+                </div>
+                <div className="mb-5">
+                  <label className="block text-xs text-zinc-500 mb-2 uppercase tracking-wider">Video File</label>
+                  <div onClick={() => videoRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-colors ${
+                      video ? 'border-[#1877F2]/50 bg-[#1877F2]/5' : 'border-[#2a2a2a] hover:border-[#1877F2]/50'
+                    }`}>
+                    {video ? (
+                      <div>
+                        <p className="text-white text-sm font-medium truncate">{video.name}</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">{(video.size / 1024 / 1024).toFixed(1)} MB</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <svg className="w-8 h-8 text-zinc-600 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-zinc-400 text-sm">Click to select a video</p>
+                        <p className="text-zinc-600 text-xs mt-1">MP4, MOV, AVI supported</p>
+                      </div>
+                    )}
+                  </div>
+                  <input ref={videoRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
+                </div>
+                {status === 'posting' && (
+                  <div className="mb-4">
+                    <div className="flex justify-between text-xs text-zinc-500 mb-1.5">
+                      <span>Uploading video...</span>
+                      <span>{progress}%</span>
+                    </div>
+                    <div className="w-full bg-[#111] rounded-full h-2">
+                      <div className="bg-[#1877F2] h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                   </div>
-                ) : (
-                  <div
-                    onClick={() => fileRef.current?.click()}
-                    className="border-2 border-dashed border-[#2a2a2a] hover:border-[#1877F2]/50 rounded-xl p-8 text-center cursor-pointer transition-colors"
-                  >
-                    <svg className="w-10 h-10 text-zinc-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p className="text-zinc-400 text-sm">Click to select an image</p>
-                    <p className="text-zinc-600 text-xs mt-1">JPG, PNG, GIF supported</p>
-                  </div>
                 )}
-                <input ref={fileRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-              </div>
+              </>
             )}
 
             {/* Error */}
@@ -193,19 +305,15 @@ export default function FacebookPostModal({ onClose }: Props) {
 
             {/* Actions */}
             <div className="flex gap-3">
-              <button
-                onClick={onClose}
-                disabled={status === 'posting'}
-                className="flex-1 py-2.5 text-sm rounded-lg border border-[#2a2a2a] text-zinc-300 hover:bg-[#222] transition-colors disabled:opacity-40"
-              >
+              <button onClick={onClose} disabled={status === 'posting'}
+                className="flex-1 py-2.5 text-sm rounded-lg border border-[#2a2a2a] text-zinc-300 hover:bg-[#222] transition-colors disabled:opacity-40">
                 Cancel
               </button>
-              <button
-                onClick={handlePost}
-                disabled={!canPost}
-                className="flex-1 py-2.5 text-sm rounded-lg bg-[#1877F2] hover:bg-[#166fe5] text-white font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {status === 'posting' ? 'Posting...' : 'Post to Facebook'}
+              <button onClick={handlePost} disabled={!canPost}
+                className="flex-1 py-2.5 text-sm rounded-lg bg-[#1877F2] hover:bg-[#166fe5] text-white font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                {status === 'posting'
+                  ? (postType === 'video' ? `Uploading ${progress}%` : 'Posting...')
+                  : 'Post to Facebook'}
               </button>
             </div>
           </>

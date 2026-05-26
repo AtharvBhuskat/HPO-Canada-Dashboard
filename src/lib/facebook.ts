@@ -6,6 +6,7 @@ const SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
+  'pages_manage_metadata',
   'instagram_basic',
   'instagram_content_publish',
 ].join(',')
@@ -43,8 +44,6 @@ export async function exchangeFacebookCode(code: string) {
   if (!res.ok) throw new Error('Facebook token exchange failed')
   const tokens = await res.json()
   localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens))
-
-  // Fetch and store the first Facebook Page automatically
   await fetchAndStorePage(tokens.access_token)
   return tokens
 }
@@ -86,59 +85,127 @@ export function isFacebookConnected() {
   return !!getFacebookTokens()
 }
 
-export async function postToFacebookPage(
-  message: string,
-  link?: string
-): Promise<string> {
+// Text / link post
+export async function postToFacebookPage(message: string, link?: string): Promise<string> {
   const page = getFacebookPage()
   if (!page) throw new Error('No Facebook Page connected')
-
-  const body: Record<string, string> = {
-    message,
-    access_token: page.access_token,
-  }
+  const body: Record<string, string> = { message, access_token: page.access_token }
   if (link) body.link = link
-
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${page.id}/feed`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
-  )
-
+  const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/feed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? 'Failed to post to Facebook')
   }
-
   const data = await res.json()
   return `https://www.facebook.com/${data.id}`
 }
 
-export async function postPhotoToFacebookPage(
-  message: string,
-  image: File
-): Promise<string> {
+// Single photo post
+export async function postPhotoToFacebookPage(message: string, image: File): Promise<string> {
   const page = getFacebookPage()
   if (!page) throw new Error('No Facebook Page connected')
-
   const formData = new FormData()
   formData.append('source', image)
   formData.append('message', message)
   formData.append('access_token', page.access_token)
-
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${page.id}/photos`,
-    { method: 'POST', body: formData }
-  )
-
+  const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/photos`, {
+    method: 'POST',
+    body: formData,
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message ?? 'Failed to upload photo to Facebook')
+    throw new Error(err?.error?.message ?? 'Failed to upload photo')
   }
-
   const data = await res.json()
   return `https://www.facebook.com/${page.id}/photos/${data.id}`
+}
+
+// Multi-photo post (up to 10 images)
+export async function postMultiplePhotosToFacebookPage(message: string, images: File[]): Promise<string> {
+  const page = getFacebookPage()
+  if (!page) throw new Error('No Facebook Page connected')
+
+  // Step 1: upload each photo as unpublished
+  const photoIds: string[] = []
+  for (const image of images) {
+    const formData = new FormData()
+    formData.append('source', image)
+    formData.append('published', 'false')
+    formData.append('access_token', page.access_token)
+    const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/photos`, {
+      method: 'POST',
+      body: formData,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err?.error?.message ?? 'Failed to upload photo')
+    }
+    const data = await res.json()
+    photoIds.push(data.id)
+  }
+
+  // Step 2: publish as a single multi-photo post
+  const body: Record<string, unknown> = {
+    message,
+    access_token: page.access_token,
+    attached_media: photoIds.map(id => ({ media_fbid: id })),
+  }
+  const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/feed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to publish multi-photo post')
+  }
+  const data = await res.json()
+  return `https://www.facebook.com/${data.id}`
+}
+
+// Video post
+export async function postVideoToFacebookPage(
+  title: string,
+  description: string,
+  video: File,
+  onProgress: (pct: number) => void
+): Promise<string> {
+  const page = getFacebookPage()
+  if (!page) throw new Error('No Facebook Page connected')
+
+  return new Promise((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('source', video)
+    formData.append('title', title)
+    formData.append('description', description)
+    formData.append('access_token', page.access_token)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `https://graph-video.facebook.com/v19.0/${page.id}/videos`)
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText)
+        resolve(`https://www.facebook.com/${page.id}/videos/${data.id}`)
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText)
+          reject(new Error(err?.error?.message ?? `Upload failed: ${xhr.status}`))
+        } catch {
+          reject(new Error(`Upload failed: ${xhr.status}`))
+        }
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('Video upload failed — network error'))
+    xhr.send(formData)
+  })
 }
