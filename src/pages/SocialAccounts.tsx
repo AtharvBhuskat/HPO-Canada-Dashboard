@@ -4,6 +4,7 @@ import type { SocialAccount, Platform } from '../types'
 import PlatformIcon from '../components/PlatformIcon'
 import ConfirmModal from '../components/ConfirmModal'
 import YouTubeUploadModal from '../components/YouTubeUploadModal'
+import FacebookPostModal from '../components/FacebookPostModal'
 import { getOAuthURL, isConnected, clearTokens } from '../lib/youtube'
 import { getFacebookOAuthURL, isFacebookConnected, clearFacebookTokens } from '../lib/facebook'
 import dayjs from 'dayjs'
@@ -30,6 +31,7 @@ export default function SocialAccounts() {
   const [disconnectTarget, setDisconnectTarget] = useState<Platform | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
+  const [showFbPost, setShowFbPost] = useState(false)
   const [ytConnected, setYtConnected] = useState(isConnected())
   const [fbConnected, setFbConnected] = useState(isFacebookConnected())
 
@@ -145,6 +147,7 @@ export default function SocialAccounts() {
                   </div>
                 )}
 
+
                 <div className="flex gap-2">
                   {connected ? (
                     <>
@@ -154,6 +157,14 @@ export default function SocialAccounts() {
                           className="flex-1 py-2 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors"
                         >
                           Upload Video
+                        </button>
+                      )}
+                      {platform === 'facebook' && (
+                        <button
+                          onClick={() => setShowFbPost(true)}
+                          className="flex-1 py-2 text-sm font-medium rounded-lg bg-[#1877F2] hover:bg-[#166fe5] text-white transition-colors"
+                        >
+                          Post to Page
                         </button>
                       )}
                       <button
@@ -201,6 +212,7 @@ export default function SocialAccounts() {
       )}
 
       {showUpload && <YouTubeUploadModal onClose={() => setShowUpload(false)} />}
+      {showFbPost && <FacebookPostModal onClose={() => setShowFbPost(false)} />}
     </div>
   )
 }
