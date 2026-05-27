@@ -5,8 +5,10 @@ import PlatformIcon from '../components/PlatformIcon'
 import ConfirmModal from '../components/ConfirmModal'
 import YouTubeUploadModal from '../components/YouTubeUploadModal'
 import FacebookPostModal from '../components/FacebookPostModal'
+import InstagramPostModal from '../components/InstagramPostModal'
 import { getOAuthURL, isConnected, clearTokens } from '../lib/youtube'
 import { getFacebookOAuthURL, isFacebookConnected, clearFacebookTokens } from '../lib/facebook'
+import { connectInstagram, isInstagramConnected, clearInstagramAccount, getInstagramAccount } from '../lib/instagram'
 import dayjs from 'dayjs'
 
 const ALL_PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'youtube']
@@ -32,8 +34,12 @@ export default function SocialAccounts() {
   const [disconnecting, setDisconnecting] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
   const [showFbPost, setShowFbPost] = useState(false)
+  const [showIgPost, setShowIgPost] = useState(false)
   const [ytConnected, setYtConnected] = useState(isConnected())
   const [fbConnected, setFbConnected] = useState(isFacebookConnected())
+  const [igConnected, setIgConnected] = useState(isInstagramConnected())
+  const [igConnecting, setIgConnecting] = useState(false)
+  const [igError, setIgError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -49,6 +55,19 @@ export default function SocialAccounts() {
 
   useEffect(() => { load() }, [load])
 
+  const handleConnectInstagram = async () => {
+    setIgConnecting(true)
+    setIgError('')
+    try {
+      await connectInstagram()
+      setIgConnected(true)
+    } catch (e: unknown) {
+      setIgError(e instanceof Error ? e.message : 'Failed to connect Instagram')
+    } finally {
+      setIgConnecting(false)
+    }
+  }
+
   const handleDisconnect = async () => {
     if (!disconnectTarget) return
     setDisconnecting(true)
@@ -59,6 +78,9 @@ export default function SocialAccounts() {
       } else if (disconnectTarget === 'facebook') {
         clearFacebookTokens()
         setFbConnected(false)
+      } else if (disconnectTarget === 'instagram') {
+        clearInstagramAccount()
+        setIgConnected(false)
       } else {
         await disconnectSocialAccount(disconnectTarget)
         load()
@@ -69,11 +91,14 @@ export default function SocialAccounts() {
     }
   }
 
-  const isYouTubeConnected = (platform: Platform) => {
+  const isConnectedPlatform = (platform: Platform) => {
     if (platform === 'youtube') return ytConnected
     if (platform === 'facebook') return fbConnected
+    if (platform === 'instagram') return igConnected
     return accounts[platform]?.connected ?? false
   }
+
+  const igAccount = getInstagramAccount()
 
   return (
     <div className="p-8">
@@ -92,7 +117,7 @@ export default function SocialAccounts() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {ALL_PLATFORMS.map(platform => {
             const account = accounts[platform]
-            const connected = isYouTubeConnected(platform)
+            const connected = isConnectedPlatform(platform)
 
             return (
               <div
@@ -121,7 +146,8 @@ export default function SocialAccounts() {
                   </span>
                 </div>
 
-                {connected && platform !== 'youtube' && account && (
+                {/* Account info */}
+                {connected && platform !== 'youtube' && platform !== 'facebook' && platform !== 'instagram' && account && (
                   <div className="mb-4 bg-[#111] rounded-lg px-3 py-2.5 border border-[#2a2a2a]">
                     {account.account_name && (
                       <p className="text-sm text-zinc-300 font-medium">@{account.account_name}</p>
@@ -140,6 +166,7 @@ export default function SocialAccounts() {
                     <p className="text-xs text-zinc-500 mt-0.5">Ready to upload videos</p>
                   </div>
                 )}
+
                 {connected && platform === 'facebook' && (
                   <div className="mb-4 bg-[#111] rounded-lg px-3 py-2.5 border border-[#2a2a2a]">
                     <p className="text-sm text-green-400 font-medium">Facebook page connected</p>
@@ -147,6 +174,19 @@ export default function SocialAccounts() {
                   </div>
                 )}
 
+                {connected && platform === 'instagram' && igAccount && (
+                  <div className="mb-4 bg-[#111] rounded-lg px-3 py-2.5 border border-[#2a2a2a]">
+                    <p className="text-sm text-green-400 font-medium">@{igAccount.username}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Ready to post photos & reels</p>
+                  </div>
+                )}
+
+                {/* Instagram error */}
+                {platform === 'instagram' && igError && (
+                  <div className="mb-4 bg-red-600/10 border border-red-600/30 rounded-lg px-3 py-2">
+                    <p className="text-red-400 text-xs">{igError}</p>
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   {connected ? (
@@ -167,31 +207,54 @@ export default function SocialAccounts() {
                           Post to Page
                         </button>
                       )}
+                      {platform === 'instagram' && (
+                        <button
+                          onClick={() => setShowIgPost(true)}
+                          className="flex-1 py-2 text-sm font-medium rounded-lg text-white transition-colors"
+                          style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)' }}
+                        >
+                          Post to Instagram
+                        </button>
+                      )}
                       <button
                         onClick={() => setDisconnectTarget(platform)}
                         className={`py-2 text-sm font-medium rounded-lg border border-[#2a2a2a] text-zinc-400 hover:border-red-600/50 hover:text-red-400 transition-colors ${
-                          platform === 'youtube' ? 'px-4' : 'flex-1'
+                          platform === 'youtube' || platform === 'facebook' || platform === 'instagram' ? 'px-4' : 'flex-1'
                         }`}
                       >
                         Disconnect
                       </button>
                     </>
                   ) : (
-                    <button
-                      onClick={() => {
-                        if (platform === 'youtube') window.location.href = getOAuthURL()
-                        else if (platform === 'facebook') window.location.href = getFacebookOAuthURL()
-                      }}
-                      disabled={platform !== 'youtube' && platform !== 'facebook'}
-                      title={platform !== 'youtube' && platform !== 'facebook' ? 'OAuth URL coming soon' : `Connect ${platformLabels[platform]}`}
-                      className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                        platform === 'youtube' || platform === 'facebook'
-                          ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 cursor-pointer'
-                          : 'bg-red-600/20 text-red-400 border border-red-600/30 opacity-60 cursor-not-allowed'
-                      }`}
-                    >
-                      {platform === 'youtube' || platform === 'facebook' ? `Connect ${platformLabels[platform]}` : 'Connect (Coming Soon)'}
-                    </button>
+                    <>
+                      {platform === 'instagram' ? (
+                        <button
+                          onClick={handleConnectInstagram}
+                          disabled={igConnecting || !fbConnected}
+                          title={!fbConnected ? 'Connect Facebook first' : 'Connect Instagram'}
+                          className="flex-1 py-2 text-sm font-medium rounded-lg text-white transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)' }}
+                        >
+                          {igConnecting ? 'Connecting...' : !fbConnected ? 'Connect Facebook First' : 'Connect Instagram'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (platform === 'youtube') window.location.href = getOAuthURL()
+                            else if (platform === 'facebook') window.location.href = getFacebookOAuthURL()
+                          }}
+                          disabled={platform !== 'youtube' && platform !== 'facebook'}
+                          title={platform !== 'youtube' && platform !== 'facebook' ? 'OAuth URL coming soon' : `Connect ${platformLabels[platform]}`}
+                          className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                            platform === 'youtube' || platform === 'facebook'
+                              ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 cursor-pointer'
+                              : 'bg-red-600/20 text-red-400 border border-red-600/30 opacity-60 cursor-not-allowed'
+                          }`}
+                        >
+                          {platform === 'youtube' || platform === 'facebook' ? `Connect ${platformLabels[platform]}` : 'Connect (Coming Soon)'}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -213,6 +276,7 @@ export default function SocialAccounts() {
 
       {showUpload && <YouTubeUploadModal onClose={() => setShowUpload(false)} />}
       {showFbPost && <FacebookPostModal onClose={() => setShowFbPost(false)} />}
+      {showIgPost && <InstagramPostModal onClose={() => setShowIgPost(false)} />}
     </div>
   )
 }
