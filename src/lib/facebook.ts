@@ -9,6 +9,7 @@ const SCOPES = [
   'pages_manage_metadata',
   'instagram_basic',
   'instagram_content_publish',
+  'publish_video',
 ].join(',')
 
 const TOKEN_KEY = 'fb_tokens'
@@ -18,6 +19,13 @@ export interface FacebookPage {
   id: string
   name: string
   access_token: string
+}
+
+export interface PostTarget {
+  id: string
+  token: string
+  name: string
+  isPage: boolean
 }
 
 export function getFacebookOAuthURL() {
@@ -85,13 +93,26 @@ export function isFacebookConnected() {
   return !!getFacebookTokens()
 }
 
+// Returns the best available target: page token if connected to a page, user token as fallback
+export function getPostTarget(): PostTarget | null {
+  const page = getFacebookPage()
+  if (page) {
+    return { id: page.id, token: page.access_token, name: page.name, isPage: true }
+  }
+  const tokens = getFacebookTokens()
+  if (tokens?.access_token) {
+    return { id: 'me', token: tokens.access_token, name: 'Personal Profile', isPage: false }
+  }
+  return null
+}
+
 // Text / link post
 export async function postToFacebookPage(message: string, link?: string): Promise<string> {
-  const page = getFacebookPage()
-  if (!page) throw new Error('No Facebook Page connected')
-  const body: Record<string, string> = { message, access_token: page.access_token }
+  const target = getPostTarget()
+  if (!target) throw new Error('Not connected to Facebook')
+  const body: Record<string, string> = { message, access_token: target.token }
   if (link) body.link = link
-  const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/feed`, {
+  const res = await fetch(`https://graph.facebook.com/v19.0/${target.id}/feed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -106,13 +127,13 @@ export async function postToFacebookPage(message: string, link?: string): Promis
 
 // Single photo post
 export async function postPhotoToFacebookPage(message: string, image: File): Promise<string> {
-  const page = getFacebookPage()
-  if (!page) throw new Error('No Facebook Page connected')
+  const target = getPostTarget()
+  if (!target) throw new Error('Not connected to Facebook')
   const formData = new FormData()
   formData.append('source', image)
   formData.append('message', message)
-  formData.append('access_token', page.access_token)
-  const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/photos`, {
+  formData.append('access_token', target.token)
+  const res = await fetch(`https://graph.facebook.com/v19.0/${target.id}/photos`, {
     method: 'POST',
     body: formData,
   })
@@ -121,22 +142,21 @@ export async function postPhotoToFacebookPage(message: string, image: File): Pro
     throw new Error(err?.error?.message ?? 'Failed to upload photo')
   }
   const data = await res.json()
-  return `https://www.facebook.com/${page.id}/photos/${data.id}`
+  return `https://www.facebook.com/${target.id}/photos/${data.id}`
 }
 
 // Multi-photo post (up to 10 images)
 export async function postMultiplePhotosToFacebookPage(message: string, images: File[]): Promise<string> {
-  const page = getFacebookPage()
-  if (!page) throw new Error('No Facebook Page connected')
+  const target = getPostTarget()
+  if (!target) throw new Error('Not connected to Facebook')
 
-  // Step 1: upload each photo as unpublished
   const photoIds: string[] = []
   for (const image of images) {
     const formData = new FormData()
     formData.append('source', image)
     formData.append('published', 'false')
-    formData.append('access_token', page.access_token)
-    const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/photos`, {
+    formData.append('access_token', target.token)
+    const res = await fetch(`https://graph.facebook.com/v19.0/${target.id}/photos`, {
       method: 'POST',
       body: formData,
     })
@@ -148,13 +168,12 @@ export async function postMultiplePhotosToFacebookPage(message: string, images: 
     photoIds.push(data.id)
   }
 
-  // Step 2: publish as a single multi-photo post
   const body: Record<string, unknown> = {
     message,
-    access_token: page.access_token,
+    access_token: target.token,
     attached_media: photoIds.map(id => ({ media_fbid: id })),
   }
-  const res = await fetch(`https://graph.facebook.com/v19.0/${page.id}/feed`, {
+  const res = await fetch(`https://graph.facebook.com/v19.0/${target.id}/feed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -174,18 +193,18 @@ export async function postVideoToFacebookPage(
   video: File,
   onProgress: (pct: number) => void
 ): Promise<string> {
-  const page = getFacebookPage()
-  if (!page) throw new Error('No Facebook Page connected')
+  const target = getPostTarget()
+  if (!target) throw new Error('Not connected to Facebook')
 
   return new Promise((resolve, reject) => {
     const formData = new FormData()
     formData.append('source', video)
     formData.append('title', title)
     formData.append('description', description)
-    formData.append('access_token', page.access_token)
+    formData.append('access_token', target.token)
 
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `https://graph-video.facebook.com/v19.0/${page.id}/videos`)
+    xhr.open('POST', `https://graph-video.facebook.com/v19.0/${target.id}/videos`)
 
     xhr.upload.onprogress = e => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
@@ -194,7 +213,7 @@ export async function postVideoToFacebookPage(
     xhr.onload = () => {
       if (xhr.status === 200) {
         const data = JSON.parse(xhr.responseText)
-        resolve(`https://www.facebook.com/${page.id}/videos/${data.id}`)
+        resolve(`https://www.facebook.com/${target.id}/videos/${data.id}`)
       } else {
         try {
           const err = JSON.parse(xhr.responseText)

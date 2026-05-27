@@ -4,7 +4,7 @@ import {
   postPhotoToFacebookPage,
   postMultiplePhotosToFacebookPage,
   postVideoToFacebookPage,
-  getFacebookPage,
+  getPostTarget,
 } from '../lib/facebook'
 
 interface Props {
@@ -38,7 +38,7 @@ export default function FacebookPostModal({ onClose }: Props) {
   const photoRef = useRef<HTMLInputElement>(null)
   const multiRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLInputElement>(null)
-  const page = getFacebookPage()
+  const target = getPostTarget()
 
   const handleSingleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -90,7 +90,7 @@ export default function FacebookPostModal({ onClose }: Props) {
     }
   }
 
-  const canPost = !!page && status !== 'posting' && (
+  const canPost = !!target && status !== 'posting' && (
     (postType === 'text' && message.trim() !== '') ||
     (postType === 'photo' && !!image && message.trim() !== '') ||
     (postType === 'multi' && multiImages.length > 0 && message.trim() !== '') ||
@@ -111,7 +111,7 @@ export default function FacebookPostModal({ onClose }: Props) {
           </div>
           <div>
             <h3 className="text-white font-semibold">Post to Facebook</h3>
-            <p className="text-zinc-500 text-xs">{page ? `Page: ${page.name}` : 'No page found'}</p>
+            <p className="text-zinc-500 text-xs">{target ? (target.isPage ? `Page: ${target.name}` : `Profile: ${target.name}`) : 'Not connected'}</p>
           </div>
         </div>
 
