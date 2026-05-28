@@ -79,6 +79,23 @@ export function getFacebookPage(): FacebookPage | null {
   return raw ? JSON.parse(raw) : null
 }
 
+export async function fetchPageById(pageId: string): Promise<FacebookPage> {
+  const tokens = getFacebookTokens()
+  if (!tokens?.access_token) throw new Error('Not connected to Facebook')
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${pageId}?fields=name,access_token&access_token=${tokens.access_token}`
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to fetch page')
+  }
+  const data = await res.json()
+  if (!data.access_token) throw new Error('No page access token returned — make sure you are an admin of this page')
+  const page: FacebookPage = { id: pageId, name: data.name, access_token: data.access_token }
+  localStorage.setItem(PAGE_KEY, JSON.stringify(page))
+  return page
+}
+
 export function getFacebookTokens() {
   const raw = localStorage.getItem(TOKEN_KEY)
   return raw ? JSON.parse(raw) : null
