@@ -117,6 +117,22 @@ export async function postImageToInstagram(caption: string, image: File): Promis
   return `https://www.instagram.com/p/${postId}`
 }
 
+// Poll Facebook until video is processed and return public source URL
+async function waitForFacebookVideo(videoId: string, token: string): Promise<string> {
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000))
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${videoId}?fields=status,source&access_token=${token}`
+    )
+    if (!res.ok) continue
+    const data = await res.json()
+    const videoStatus = data.status?.video_status
+    if (videoStatus === 'ready' && data.source) return data.source
+    if (videoStatus === 'error') throw new Error('Facebook video processing failed')
+  }
+  throw new Error('Video processing timed out — try a shorter video')
+}
+
 async function waitForContainer(_igAccountId: string, creationId: string, token: string): Promise<void> {
   for (let i = 0; i < 20; i++) {
     await new Promise(r => setTimeout(r, 3000))
@@ -143,46 +159,24 @@ export async function postVideoToInstagram(
 
   onProgress(5)
 
-  // Step 1: Initialize resumable upload session directly with Instagram
-  const initRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccount.id}/media`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        media_type: 'REELS',
-        upload_type: 'resumable',
-        caption,
-        access_token: page.access_token,
-      }),
-    }
-  )
-  if (!initRes.ok) {
-    const err = await initRes.json().catch(() => ({}))
-    throw new Error(err?.error?.message ?? 'Failed to initialize video upload')
-  }
-  const initData = await initRes.json()
-  const creationId: string = initData.id
-  const uploadUri: string = initData.uri
+  // Step 1: Upload video to Facebook (unpublished) — no CORS issues via XHR
+  const videoId = await new Promise<string>((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('source', video)
+    formData.append('published', 'false')
+    formData.append('access_token', page.access_token)
 
-  if (!uploadUri) throw new Error('No upload URI returned from Instagram')
-  onProgress(10)
-
-  // Step 2: Upload video directly to Instagram's upload URI
-  await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', uploadUri)
-    xhr.setRequestHeader('Authorization', `OAuth ${page.access_token}`)
-    xhr.setRequestHeader('offset', '0')
-    xhr.setRequestHeader('file_size', video.size.toString())
+    xhr.open('POST', `https://graph-video.facebook.com/v19.0/${page.id}/videos`)
 
     xhr.upload.onprogress = e => {
-      if (e.lengthComputable) onProgress(10 + Math.round((e.loaded / e.total) * 70))
+      if (e.lengthComputable) onProgress(5 + Math.round((e.loaded / e.total) * 40))
     }
 
     xhr.onload = () => {
       if (xhr.status === 200) {
-        resolve()
+        const data = JSON.parse(xhr.responseText)
+        resolve(data.id)
       } else {
         try {
           const err = JSON.parse(xhr.responseText)
@@ -193,16 +187,41 @@ export async function postVideoToInstagram(
       }
     }
     xhr.onerror = () => reject(new Error('Video upload failed — network error'))
-    xhr.send(video)
+    xhr.send(formData)
   })
 
-  onProgress(85)
+  onProgress(50)
 
-  // Step 3: Wait for Instagram to finish processing the video
+  // Step 2: Wait for Facebook to finish processing and get the CDN URL
+  const videoUrl = await waitForFacebookVideo(videoId, page.access_token)
+  onProgress(65)
+
+  // Step 3: Create Instagram Reel container using the Facebook CDN URL
+  const containerRes = await fetch(
+    `https://graph.facebook.com/v19.0/${igAccount.id}/media`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        media_type: 'REELS',
+        video_url: videoUrl,
+        caption,
+        access_token: page.access_token,
+      }),
+    }
+  )
+  if (!containerRes.ok) {
+    const err = await containerRes.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to create Instagram Reel')
+  }
+  const { id: creationId } = await containerRes.json()
+  onProgress(75)
+
+  // Step 4: Wait for Instagram to process
   await waitForContainer(igAccount.id, creationId, page.access_token)
   onProgress(95)
 
-  // Step 4: Publish
+  // Step 5: Publish
   const publishRes = await fetch(
     `https://graph.facebook.com/v19.0/${igAccount.id}/media_publish`,
     {
