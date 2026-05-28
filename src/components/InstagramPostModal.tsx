@@ -171,6 +171,7 @@ export default function InstagramPostModal({ onClose }: Props) {
                       </svg>
                       <p className="text-zinc-400 text-sm">Click to select a video</p>
                       <p className="text-zinc-600 text-xs mt-1">MP4 recommended · vertical format for Reels</p>
+                  <p className="text-yellow-600 text-xs mt-1">Note: video will also be posted to your Facebook Page</p>
                     </div>
                   )}
                 </div>

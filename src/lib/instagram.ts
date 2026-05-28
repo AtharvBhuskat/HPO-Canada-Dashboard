@@ -159,11 +159,11 @@ export async function postVideoToInstagram(
 
   onProgress(5)
 
-  // Step 1: Upload video to Facebook (unpublished) — no CORS issues via XHR
+  // Step 1: Upload video to Facebook (published) to get a truly public CDN URL for Instagram
   const videoId = await new Promise<string>((resolve, reject) => {
     const formData = new FormData()
     formData.append('source', video)
-    formData.append('published', 'false')
+    formData.append('description', caption)
     formData.append('access_token', page.access_token)
 
     const xhr = new XMLHttpRequest()
