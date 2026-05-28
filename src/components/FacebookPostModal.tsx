@@ -90,11 +90,17 @@ export default function FacebookPostModal({ onClose }: Props) {
             (pct) => setProgress(Math.round(pct * 0.75))
           )
           url = fbUrl
-          const igUrl = await postVideoToInstagramFromUrl(
-            message, sourceUrl,
-            (pct) => setProgress(75 + Math.round(pct * 0.25))
-          )
-          setIgPostUrl(igUrl)
+          try {
+            const igUrl = await postVideoToInstagramFromUrl(
+              message, sourceUrl,
+              (pct) => setProgress(75 + Math.round(pct * 0.25))
+            )
+            setIgPostUrl(igUrl)
+          } catch (igErr: unknown) {
+            // Facebook succeeded — show success with Instagram error note
+            setIgPostUrl('')
+            setError(`Instagram failed: ${igErr instanceof Error ? igErr.message : 'Unknown error'} (video must be vertical/portrait format for Reels)`)
+          }
         } else {
           url = await postVideoToFacebookPage(videoTitle, message, video, setProgress)
         }
@@ -102,8 +108,13 @@ export default function FacebookPostModal({ onClose }: Props) {
       setPostUrl(url)
       setStatus('done')
     } catch (e: unknown) {
-      setStatus('error')
-      setError(e instanceof Error ? e.message : 'Post failed')
+      if (postUrl) {
+        // Facebook already posted — still show done with error note
+        setStatus('done')
+      } else {
+        setStatus('error')
+        setError(e instanceof Error ? e.message : 'Post failed')
+      }
     }
   }
 
@@ -140,7 +151,8 @@ export default function FacebookPostModal({ onClose }: Props) {
               </svg>
             </div>
             <p className="text-white font-semibold mb-1">Posted to Facebook!</p>
-            <p className="text-zinc-500 text-sm mb-5">Your post is now live on your page</p>
+            <p className="text-zinc-500 text-sm mb-3">Your post is now live on your page</p>
+            {error && <p className="text-yellow-500 text-xs mb-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">{error}</p>}
             <div className="flex flex-col gap-2 items-center">
               <a href={postUrl} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-sm rounded-lg font-medium transition-colors w-full justify-center">
