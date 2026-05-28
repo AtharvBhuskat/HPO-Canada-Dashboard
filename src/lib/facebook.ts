@@ -9,7 +9,6 @@ const SCOPES = [
   'pages_manage_metadata',
   'instagram_basic',
   'instagram_content_publish',
-  'publish_video',
 ].join(',')
 
 const TOKEN_KEY = 'fb_tokens'
