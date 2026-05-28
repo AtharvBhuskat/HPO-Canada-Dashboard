@@ -7,6 +7,7 @@ const SCOPES = [
   'pages_read_engagement',
   'pages_manage_posts',
   'pages_manage_metadata',
+  'publish_video',
   'instagram_basic',
   'instagram_content_publish',
 ].join(',')
