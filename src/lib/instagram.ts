@@ -241,3 +241,59 @@ export async function postVideoToInstagram(
   const { id: postId } = await publishRes.json()
   return `https://www.instagram.com/p/${postId}`
 }
+
+// Post to Instagram using an already-public video URL (used for cross-posting from Facebook)
+export async function postVideoToInstagramFromUrl(
+  caption: string,
+  videoUrl: string,
+  onProgress: (pct: number) => void
+): Promise<string> {
+  const page = getFacebookPage()
+  if (!page) throw new Error('Facebook Page not connected')
+  const igAccount = getInstagramAccount()
+  if (!igAccount) throw new Error('Instagram not connected')
+
+  onProgress(10)
+
+  const containerRes = await fetch(
+    `https://graph.facebook.com/v19.0/${igAccount.id}/media`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        media_type: 'REELS',
+        video_url: videoUrl,
+        caption,
+        access_token: page.access_token,
+      }),
+    }
+  )
+  if (!containerRes.ok) {
+    const err = await containerRes.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to create Instagram Reel')
+  }
+  const { id: creationId } = await containerRes.json()
+  onProgress(50)
+
+  await waitForContainer(igAccount.id, creationId, page.access_token)
+  onProgress(90)
+
+  const publishRes = await fetch(
+    `https://graph.facebook.com/v19.0/${igAccount.id}/media_publish`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        creation_id: creationId,
+        access_token: page.access_token,
+      }),
+    }
+  )
+  if (!publishRes.ok) {
+    const err = await publishRes.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to publish Instagram Reel')
+  }
+  onProgress(100)
+  const { id: postId } = await publishRes.json()
+  return `https://www.instagram.com/p/${postId}`
+}

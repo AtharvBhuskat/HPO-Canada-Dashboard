@@ -245,3 +245,69 @@ export async function postVideoToFacebookPage(
     xhr.send(formData)
   })
 }
+
+// Upload video to Facebook and return both the post URL and a public source URL for cross-posting
+async function pollForVideoSourceUrl(videoId: string, token: string): Promise<string> {
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000))
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${videoId}?fields=status,source&access_token=${token}`
+    )
+    if (!res.ok) continue
+    const data = await res.json()
+    if (data.status?.video_status === 'ready' && data.source) return data.source
+    if (data.status?.video_status === 'error') throw new Error('Facebook video processing failed')
+  }
+  throw new Error('Video processing timed out')
+}
+
+export async function postVideoToFacebookAndGetSourceUrl(
+  title: string,
+  description: string,
+  video: File,
+  onProgress: (pct: number) => void
+): Promise<{ postUrl: string; sourceUrl: string }> {
+  const target = getPostTarget()
+  if (!target) throw new Error('Not connected to Facebook')
+
+  const videoId = await new Promise<string>((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('source', video)
+    formData.append('title', title)
+    formData.append('description', description)
+    formData.append('access_token', target.token)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `https://graph-video.facebook.com/v19.0/${target.id}/videos`)
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 60))
+    }
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText)
+        resolve(data.id)
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText)
+          reject(new Error(err?.error?.message ?? `Upload failed: ${xhr.status}`))
+        } catch {
+          reject(new Error(`Upload failed: ${xhr.status}`))
+        }
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('Video upload failed — network error'))
+    xhr.send(formData)
+  })
+
+  onProgress(65)
+  const sourceUrl = await pollForVideoSourceUrl(videoId, target.token)
+  onProgress(75)
+
+  return {
+    postUrl: `https://www.facebook.com/${target.id}/videos/${videoId}`,
+    sourceUrl,
+  }
+}
