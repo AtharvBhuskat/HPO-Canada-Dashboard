@@ -4,10 +4,8 @@ import {
   postPhotoToFacebookPage,
   postMultiplePhotosToFacebookPage,
   postVideoToFacebookPage,
-  postVideoToFacebookAndGetSourceUrl,
   getPostTarget,
 } from '../lib/facebook'
-import { isInstagramConnected, postVideoToInstagramFromUrl } from '../lib/instagram'
 
 interface Props {
   onClose: () => void
@@ -33,10 +31,8 @@ export default function FacebookPostModal({ onClose }: Props) {
   const [video, setVideo] = useState<File | null>(null)
   const [videoTitle, setVideoTitle] = useState('')
   const [progress, setProgress] = useState(0)
-  const [alsoPostInstagram, setAlsoPostInstagram] = useState(false)
   const [status, setStatus] = useState<'idle' | 'posting' | 'done' | 'error'>('idle')
   const [postUrl, setPostUrl] = useState('')
-  const [igPostUrl, setIgPostUrl] = useState('')
   const [error, setError] = useState('')
 
   const photoRef = useRef<HTMLInputElement>(null)
@@ -84,37 +80,13 @@ export default function FacebookPostModal({ onClose }: Props) {
       } else if (postType === 'multi' && multiImages.length > 0) {
         url = await postMultiplePhotosToFacebookPage(message, multiImages)
       } else if (postType === 'video' && video) {
-        if (alsoPostInstagram && isInstagramConnected()) {
-          const { postUrl: fbUrl, sourceUrl } = await postVideoToFacebookAndGetSourceUrl(
-            videoTitle, message, video,
-            (pct) => setProgress(Math.round(pct * 0.75))
-          )
-          url = fbUrl
-          try {
-            const igUrl = await postVideoToInstagramFromUrl(
-              message, sourceUrl,
-              (pct) => setProgress(75 + Math.round(pct * 0.25))
-            )
-            setIgPostUrl(igUrl)
-          } catch (igErr: unknown) {
-            // Facebook succeeded — show success with Instagram error note
-            setIgPostUrl('')
-            setError(`Instagram failed: ${igErr instanceof Error ? igErr.message : 'Unknown error'} (video must be vertical/portrait format for Reels)`)
-          }
-        } else {
-          url = await postVideoToFacebookPage(videoTitle, message, video, setProgress)
-        }
+        url = await postVideoToFacebookPage(videoTitle, message, video, setProgress)
       }
       setPostUrl(url)
       setStatus('done')
     } catch (e: unknown) {
-      if (postUrl) {
-        // Facebook already posted — still show done with error note
-        setStatus('done')
-      } else {
-        setStatus('error')
-        setError(e instanceof Error ? e.message : 'Post failed')
-      }
+      setStatus('error')
+      setError(e instanceof Error ? e.message : 'Post failed')
     }
   }
 
@@ -151,28 +123,16 @@ export default function FacebookPostModal({ onClose }: Props) {
               </svg>
             </div>
             <p className="text-white font-semibold mb-1">Posted to Facebook!</p>
-            <p className="text-zinc-500 text-sm mb-3">Your post is now live on your page</p>
-            {error && <p className="text-yellow-500 text-xs mb-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">{error}</p>}
-            <div className="flex flex-col gap-2 items-center">
-              <a href={postUrl} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-sm rounded-lg font-medium transition-colors w-full justify-center">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View on Facebook
-              </a>
-              {igPostUrl && (
-                <a href={igPostUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm rounded-lg font-medium transition-colors w-full justify-center"
-                  style={{ background: 'linear-gradient(135deg, #f09433, #dc2743, #bc1888)' }}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  View on Instagram
-                </a>
-              )}
-            </div>
-            <button onClick={onClose} className="text-sm text-zinc-500 hover:text-zinc-300 mt-3">Close</button>
+            <p className="text-zinc-500 text-sm mb-5">Your post is now live on your page</p>
+            <a href={postUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1877F2] hover:bg-[#166fe5] text-white text-sm rounded-lg font-medium transition-colors mb-3">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              View on Facebook
+            </a>
+            <br />
+            <button onClick={onClose} className="text-sm text-zinc-500 hover:text-zinc-300 mt-2">Close</button>
           </div>
         ) : (
           <>
@@ -322,25 +282,10 @@ export default function FacebookPostModal({ onClose }: Props) {
                   </div>
                   <input ref={videoRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
                 </div>
-                {isInstagramConnected() && (
-                  <div className="mb-4 flex items-center justify-between bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2.5">
-                    <div>
-                      <p className="text-sm text-white">Also post to Instagram</p>
-                      <p className="text-xs text-zinc-500">Video will be posted as a Reel</p>
-                    </div>
-                    <button
-                      onClick={() => setAlsoPostInstagram(p => !p)}
-                      className={`w-11 h-6 rounded-full transition-colors relative ${alsoPostInstagram ? 'bg-pink-500' : 'bg-zinc-700'}`}
-                    >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${alsoPostInstagram ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </button>
-                  </div>
-                )}
-
                 {status === 'posting' && (
                   <div className="mb-4">
                     <div className="flex justify-between text-xs text-zinc-500 mb-1.5">
-                      <span>{alsoPostInstagram && progress > 75 ? 'Posting to Instagram...' : 'Uploading video...'}</span>
+                      <span>Uploading video...</span>
                       <span>{progress}%</span>
                     </div>
                     <div className="w-full bg-[#111] rounded-full h-2">
