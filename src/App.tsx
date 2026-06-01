@@ -7,6 +7,7 @@ import EmailCampaigns from './pages/EmailCampaigns'
 import Inbox from './pages/Inbox'
 import Leads from './pages/Leads'
 import Settings from './pages/Settings'
+import AiAssistant from './pages/AiAssistant'
 import YouTubeCallback from './pages/YouTubeCallback'
 import FacebookCallback from './pages/FacebookCallback'
 
@@ -31,6 +32,7 @@ export default function App() {
                 <Route path="/inbox"     element={<Inbox />} />
                 <Route path="/leads"     element={<Leads />} />
                 <Route path="/settings"  element={<Settings />} />
+                <Route path="/ai"        element={<AiAssistant />} />
               </Routes>
             </main>
           </div>
