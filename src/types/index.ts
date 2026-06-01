@@ -13,6 +13,8 @@ export interface ContentItem {
   created_at: string
   scheduled_at?: string
   platforms?: Platform[]
+  metadata?: Record<string, string>
+  s3_key?: string
 }
 
 export interface Lead {
