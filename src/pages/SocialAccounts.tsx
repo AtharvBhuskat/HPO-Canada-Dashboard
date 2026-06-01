@@ -11,13 +11,17 @@ import { getFacebookOAuthURL, isFacebookConnected, clearFacebookTokens } from '.
 import { connectInstagram, isInstagramConnected, clearInstagramAccount, getInstagramAccount } from '../lib/instagram'
 import dayjs from 'dayjs'
 
-const ALL_PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'youtube']
+const ALL_PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'youtube', 'tiktok', 'reddit', 'twitter']
+const COMING_SOON: Platform[] = ['tiktok', 'reddit', 'twitter']
 
 const platformLabels: Record<Platform, string> = {
   linkedin: 'LinkedIn',
   instagram: 'Instagram',
   facebook: 'Facebook',
   youtube: 'YouTube',
+  tiktok: 'TikTok',
+  reddit: 'Reddit',
+  twitter: 'X (Twitter)',
 }
 
 const platformDescriptions: Record<Platform, string> = {
@@ -25,6 +29,9 @@ const platformDescriptions: Record<Platform, string> = {
   instagram: 'Visual content & brand awareness',
   facebook: 'Community & audience engagement',
   youtube: 'Video content & tutorials',
+  tiktok: 'Short-form video & viral content',
+  reddit: 'Community discussions & AMAs',
+  twitter: 'Real-time updates & engagement',
 }
 
 export default function SocialAccounts() {
@@ -118,12 +125,13 @@ export default function SocialAccounts() {
           {ALL_PLATFORMS.map(platform => {
             const account = accounts[platform]
             const connected = isConnectedPlatform(platform)
+            const isComingSoon = COMING_SOON.includes(platform)
 
             return (
               <div
                 key={platform}
                 className={`bg-[#1a1a1a] border rounded-xl p-6 transition-colors ${
-                  connected ? 'border-[#2a2a2a] hover:border-[#333]' : 'border-[#2a2a2a] opacity-75'
+                  isComingSoon ? 'border-[#2a2a2a] opacity-50' : connected ? 'border-[#2a2a2a] hover:border-[#333]' : 'border-[#2a2a2a] opacity-75'
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
@@ -137,12 +145,14 @@ export default function SocialAccounts() {
                     </div>
                   </div>
                   <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
-                    connected
-                      ? 'bg-green-500/15 text-green-400 border border-green-500/25'
-                      : 'bg-zinc-800 text-zinc-500 border border-[#2a2a2a]'
+                    isComingSoon
+                      ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                      : connected
+                        ? 'bg-green-500/15 text-green-400 border border-green-500/25'
+                        : 'bg-zinc-800 text-zinc-500 border border-[#2a2a2a]'
                   }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400' : 'bg-zinc-600'}`} />
-                    {connected ? 'Connected' : 'Disconnected'}
+                    <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? 'bg-yellow-500' : connected ? 'bg-green-400' : 'bg-zinc-600'}`} />
+                    {isComingSoon ? 'Coming Soon' : connected ? 'Connected' : 'Disconnected'}
                   </span>
                 </div>
 
@@ -189,7 +199,14 @@ export default function SocialAccounts() {
                 )}
 
                 <div className="flex gap-2">
-                  {connected ? (
+                  {isComingSoon ? (
+                    <button
+                      disabled
+                      className="flex-1 py-2 text-sm font-medium rounded-lg border border-[#2a2a2a] text-zinc-600 cursor-not-allowed"
+                    >
+                      Coming Soon
+                    </button>
+                  ) : connected ? (
                     <>
                       {platform === 'youtube' && (
                         <button

@@ -1,6 +1,6 @@
 export type ContentType = 'blog' | 'email' | 'video' | 'research'
 export type ContentStatus = 'pending' | 'approved' | 'rejected' | 'scheduled' | 'posted'
-export type Platform = 'linkedin' | 'instagram' | 'facebook' | 'youtube'
+export type Platform = 'linkedin' | 'instagram' | 'facebook' | 'youtube' | 'tiktok' | 'reddit' | 'twitter'
 export type LeadStatus = 'cold' | 'warm' | 'active'
 
 export interface ContentItem {
