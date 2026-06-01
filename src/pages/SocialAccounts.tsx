@@ -131,12 +131,12 @@ export default function SocialAccounts() {
               <div
                 key={platform}
                 className={`bg-[#1a1a1a] border rounded-xl p-6 transition-colors ${
-                  isComingSoon ? 'border-[#2a2a2a] opacity-50' : connected ? 'border-[#2a2a2a] hover:border-[#333]' : 'border-[#2a2a2a] opacity-75'
+                  isComingSoon ? 'border-blue-500/20 bg-[#1a1a2a]' : connected ? 'border-[#2a2a2a] hover:border-[#333]' : 'border-[#2a2a2a] opacity-75'
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-[#111] flex items-center justify-center border border-[#2a2a2a]">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center border ${isComingSoon ? 'bg-blue-500/10 border-blue-500/20' : 'bg-[#111] border-[#2a2a2a]'}`}>
                       <PlatformIcon platform={platform} size={22} />
                     </div>
                     <div>
@@ -146,15 +146,23 @@ export default function SocialAccounts() {
                   </div>
                   <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
                     isComingSoon
-                      ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20'
+                      ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                       : connected
                         ? 'bg-green-500/15 text-green-400 border border-green-500/25'
                         : 'bg-zinc-800 text-zinc-500 border border-[#2a2a2a]'
                   }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? 'bg-yellow-500' : connected ? 'bg-green-400' : 'bg-zinc-600'}`} />
-                    {isComingSoon ? 'Coming Soon' : connected ? 'Connected' : 'Disconnected'}
+                    <span className={`w-1.5 h-1.5 rounded-full ${isComingSoon ? 'bg-blue-400 animate-pulse' : connected ? 'bg-green-400' : 'bg-zinc-600'}`} />
+                    {isComingSoon ? 'In Progress' : connected ? 'Connected' : 'Disconnected'}
                   </span>
                 </div>
+
+                {/* In-progress info */}
+                {isComingSoon && (
+                  <div className="mb-4 bg-blue-500/5 rounded-lg px-3 py-2.5 border border-blue-500/15">
+                    <p className="text-sm text-blue-400 font-medium">Integration being set up</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">OAuth & API connection in development</p>
+                  </div>
+                )}
 
                 {/* Account info */}
                 {connected && platform !== 'youtube' && platform !== 'facebook' && platform !== 'instagram' && account && (
@@ -202,9 +210,9 @@ export default function SocialAccounts() {
                   {isComingSoon ? (
                     <button
                       disabled
-                      className="flex-1 py-2 text-sm font-medium rounded-lg border border-[#2a2a2a] text-zinc-600 cursor-not-allowed"
+                      className="flex-1 py-2 text-sm font-medium rounded-lg border border-blue-500/20 bg-blue-500/5 text-blue-400/60 cursor-not-allowed"
                     >
-                      Coming Soon
+                      Integration in Progress
                     </button>
                   ) : connected ? (
                     <>
