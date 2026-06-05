@@ -6,13 +6,15 @@ import ConfirmModal from '../components/ConfirmModal'
 import YouTubeUploadModal from '../components/YouTubeUploadModal'
 import FacebookPostModal from '../components/FacebookPostModal'
 import InstagramPostModal from '../components/InstagramPostModal'
+import TikTokUploadModal from '../components/TikTokUploadModal'
 import { getOAuthURL, isConnected, clearTokens } from '../lib/youtube'
 import { getFacebookOAuthURL, isFacebookConnected, clearFacebookTokens } from '../lib/facebook'
 import { connectInstagram, isInstagramConnected, clearInstagramAccount, getInstagramAccount } from '../lib/instagram'
+import { getTikTokAuthUrl, isTikTokConnected, clearTikTokTokens } from '../lib/tiktok'
 import dayjs from 'dayjs'
 
 const ALL_PLATFORMS: Platform[] = ['linkedin', 'instagram', 'facebook', 'youtube', 'tiktok', 'reddit', 'twitter']
-const COMING_SOON: Platform[] = ['tiktok', 'reddit', 'twitter']
+const COMING_SOON: Platform[] = ['reddit', 'twitter']
 
 const platformLabels: Record<Platform, string> = {
   linkedin: 'LinkedIn',
@@ -42,9 +44,11 @@ export default function SocialAccounts() {
   const [showUpload, setShowUpload] = useState(false)
   const [showFbPost, setShowFbPost] = useState(false)
   const [showIgPost, setShowIgPost] = useState(false)
+  const [showTtUpload, setShowTtUpload] = useState(false)
   const [ytConnected, setYtConnected] = useState(isConnected())
   const [fbConnected, setFbConnected] = useState(isFacebookConnected())
   const [igConnected, setIgConnected] = useState(isInstagramConnected())
+  const [ttConnected, setTtConnected] = useState(isTikTokConnected())
   const [igConnecting, setIgConnecting] = useState(false)
   const [igError, setIgError] = useState('')
 
@@ -88,6 +92,9 @@ export default function SocialAccounts() {
       } else if (disconnectTarget === 'instagram') {
         clearInstagramAccount()
         setIgConnected(false)
+      } else if (disconnectTarget === 'tiktok') {
+        clearTikTokTokens()
+        setTtConnected(false)
       } else {
         await disconnectSocialAccount(disconnectTarget)
         load()
@@ -102,6 +109,7 @@ export default function SocialAccounts() {
     if (platform === 'youtube') return ytConnected
     if (platform === 'facebook') return fbConnected
     if (platform === 'instagram') return igConnected
+    if (platform === 'tiktok') return ttConnected
     return accounts[platform]?.connected ?? false
   }
 
@@ -199,6 +207,13 @@ export default function SocialAccounts() {
                   </div>
                 )}
 
+                {connected && platform === 'tiktok' && (
+                  <div className="mb-4 bg-[#111] rounded-lg px-3 py-2.5 border border-[#2a2a2a]">
+                    <p className="text-sm text-green-400 font-medium">TikTok account connected</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">Ready to upload short-form videos</p>
+                  </div>
+                )}
+
                 {/* Instagram error */}
                 {platform === 'instagram' && igError && (
                   <div className="mb-4 bg-red-600/10 border border-red-600/30 rounded-lg px-3 py-2">
@@ -241,10 +256,19 @@ export default function SocialAccounts() {
                           Post to Instagram
                         </button>
                       )}
+                      {platform === 'tiktok' && (
+                        <button
+                          onClick={() => setShowTtUpload(true)}
+                          className="flex-1 py-2 text-sm font-medium rounded-lg text-white transition-opacity hover:opacity-90"
+                          style={{ background: '#FE2C55' }}
+                        >
+                          Upload Video
+                        </button>
+                      )}
                       <button
                         onClick={() => setDisconnectTarget(platform)}
                         className={`py-2 text-sm font-medium rounded-lg border border-[#2a2a2a] text-zinc-400 hover:border-red-600/50 hover:text-red-400 transition-colors ${
-                          platform === 'youtube' || platform === 'facebook' || platform === 'instagram' ? 'px-4' : 'flex-1'
+                          platform === 'youtube' || platform === 'facebook' || platform === 'instagram' || platform === 'tiktok' ? 'px-4' : 'flex-1'
                         }`}
                       >
                         Disconnect
@@ -267,16 +291,20 @@ export default function SocialAccounts() {
                           onClick={() => {
                             if (platform === 'youtube') window.location.href = getOAuthURL()
                             else if (platform === 'facebook') window.location.href = getFacebookOAuthURL()
+                            else if (platform === 'tiktok') window.location.href = getTikTokAuthUrl()
                           }}
-                          disabled={platform !== 'youtube' && platform !== 'facebook'}
-                          title={platform !== 'youtube' && platform !== 'facebook' ? 'OAuth URL coming soon' : `Connect ${platformLabels[platform]}`}
+                          disabled={platform !== 'youtube' && platform !== 'facebook' && platform !== 'tiktok'}
+                          title={`Connect ${platformLabels[platform]}`}
                           className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
                             platform === 'youtube' || platform === 'facebook'
                               ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 cursor-pointer'
-                              : 'bg-red-600/20 text-red-400 border border-red-600/30 opacity-60 cursor-not-allowed'
+                              : platform === 'tiktok'
+                                ? 'text-white border-transparent cursor-pointer hover:opacity-90'
+                                : 'bg-red-600/20 text-red-400 border border-red-600/30 opacity-60 cursor-not-allowed'
                           }`}
+                          style={platform === 'tiktok' ? { background: '#FE2C55' } : undefined}
                         >
-                          {platform === 'youtube' || platform === 'facebook' ? `Connect ${platformLabels[platform]}` : 'Connect (Coming Soon)'}
+                          {platform === 'tiktok' ? 'Connect TikTok' : platform === 'youtube' || platform === 'facebook' ? `Connect ${platformLabels[platform]}` : 'Connect (Coming Soon)'}
                         </button>
                       )}
                     </>
@@ -302,6 +330,7 @@ export default function SocialAccounts() {
       {showUpload && <YouTubeUploadModal onClose={() => setShowUpload(false)} />}
       {showFbPost && <FacebookPostModal onClose={() => setShowFbPost(false)} />}
       {showIgPost && <InstagramPostModal onClose={() => setShowIgPost(false)} />}
+      {showTtUpload && <TikTokUploadModal onClose={() => setShowTtUpload(false)} />}
     </div>
   )
 }

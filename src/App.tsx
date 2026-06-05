@@ -10,6 +10,7 @@ import Settings from './pages/Settings'
 import AiAssistant from './pages/AiAssistant'
 import YouTubeCallback from './pages/YouTubeCallback'
 import FacebookCallback from './pages/FacebookCallback'
+import TikTokCallback from './pages/TikTokCallback'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         {/* OAuth callbacks — no sidebar */}
         <Route path="/auth/youtube" element={<YouTubeCallback />} />
         <Route path="/auth/facebook" element={<FacebookCallback />} />
+        <Route path="/auth/tiktok" element={<TikTokCallback />} />
 
         {/* Main app — with sidebar */}
         <Route path="*" element={
