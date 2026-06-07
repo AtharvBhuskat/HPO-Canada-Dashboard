@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getContent, approveContent, rejectContent } from '../api'
+import { getContent, getContentItem, approveContent, rejectContent } from '../api'
 import type { ContentItem } from '../types'
 import dayjs from 'dayjs'
 import StatusBadge from '../components/StatusBadge'
@@ -9,6 +9,7 @@ export default function EmailCampaigns() {
   const [items, setItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<ContentItem | null>(null)
+  const [loadingFull, setLoadingFull] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
   const [showReject, setShowReject] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -21,6 +22,17 @@ export default function EmailCampaigns() {
       setItems(data.items)
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  const handleSelect = useCallback(async (item: ContentItem) => {
+    setSelected(item)
+    setLoadingFull(true)
+    try {
+      const full = await getContentItem(item.id)
+      setSelected(full)
+    } finally {
+      setLoadingFull(false)
     }
   }, [])
 
@@ -56,7 +68,7 @@ export default function EmailCampaigns() {
             items.map(item => (
               <button
                 key={item.id}
-                onClick={() => setSelected(item)}
+                onClick={() => handleSelect(item)}
                 className={`w-full text-left bg-[#1a1a1a] border rounded-xl p-4 transition-colors hover:border-[#333] ${
                   selected?.id === item.id ? 'border-red-600' : 'border-[#2a2a2a]'
                 }`}
@@ -112,8 +124,26 @@ export default function EmailCampaigns() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">
-                {selected.body ? (
-                  <div className="bg-white rounded-lg p-4 max-w-2xl mx-auto" dangerouslySetInnerHTML={{ __html: selected.body }} />
+                {loadingFull ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                      <p className="text-zinc-500 text-sm">Loading full email...</p>
+                    </div>
+                  </div>
+                ) : selected.body ? (
+                  <div className="bg-white rounded-lg overflow-hidden max-w-2xl mx-auto">
+                    <iframe
+                      srcDoc={selected.body}
+                      className="w-full border-0"
+                      style={{ minHeight: '600px' }}
+                      onLoad={e => {
+                        const iframe = e.currentTarget
+                        iframe.style.height = iframe.contentDocument?.body?.scrollHeight + 'px'
+                      }}
+                      sandbox="allow-same-origin"
+                    />
+                  </div>
                 ) : (
                   <div className="max-w-2xl mx-auto">
                     <div className="bg-[#111] rounded-lg p-6 border border-[#2a2a2a]">
