@@ -11,6 +11,7 @@ import AiAssistant from './pages/AiAssistant'
 import YouTubeCallback from './pages/YouTubeCallback'
 import FacebookCallback from './pages/FacebookCallback'
 import TikTokCallback from './pages/TikTokCallback'
+import LinkedInCallback from './pages/LinkedInCallback'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/auth/youtube" element={<YouTubeCallback />} />
         <Route path="/auth/facebook" element={<FacebookCallback />} />
         <Route path="/auth/tiktok" element={<TikTokCallback />} />
+        <Route path="/auth/linkedin" element={<LinkedInCallback />} />
 
         {/* Main app — with sidebar */}
         <Route path="*" element={
