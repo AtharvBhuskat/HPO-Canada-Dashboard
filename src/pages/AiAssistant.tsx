@@ -14,12 +14,25 @@ const SUGGESTIONS = [
   'Summarize the key trends in AI marketing for 2026',
 ]
 
+const CHAT_STORAGE_KEY = 'ai_assistant_messages'
+
+function loadMessages(): Message[] {
+  try {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
 export default function AiAssistant() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>(loadMessages)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages))
+  }, [messages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -186,7 +199,7 @@ export default function AiAssistant() {
       <div className="flex-shrink-0 px-8 py-4 border-t border-[#1e1e1e] bg-[#0a0a0a]">
         {messages.length > 0 && (
           <button
-            onClick={() => setMessages([])}
+            onClick={() => { setMessages([]); localStorage.removeItem(CHAT_STORAGE_KEY) }}
             className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors mb-3"
           >
             Clear conversation
