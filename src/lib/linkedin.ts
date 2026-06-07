@@ -1,6 +1,6 @@
 const CLIENT_ID = import.meta.env.VITE_LINKEDIN_CLIENT_ID as string
+const CLIENT_SECRET = import.meta.env.VITE_LINKEDIN_CLIENT_SECRET as string
 const REDIRECT_URI = `${window.location.origin}/auth/linkedin`
-const API_BASE = 'https://4mtxj04f6d.execute-api.us-east-1.amazonaws.com/default'
 
 const STORAGE_KEY = 'linkedin_tokens'
 
@@ -28,10 +28,16 @@ export function getLinkedInAuthUrl(): string {
 }
 
 export async function exchangeLinkedInCode(code: string): Promise<LinkedInTokens> {
-  const res = await fetch(`${API_BASE}/linkedin/token`, {
+  const res = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    }),
   })
 
   const data = await res.json()
