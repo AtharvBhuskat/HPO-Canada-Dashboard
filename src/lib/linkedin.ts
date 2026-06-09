@@ -4,12 +4,6 @@ const API_BASE = 'https://4mtxj04f6d.execute-api.us-east-1.amazonaws.com/default
 
 const STORAGE_KEY = 'linkedin_tokens'
 
-const LI_HEADERS = (token: string) => ({
-  Authorization: `Bearer ${token}`,
-  'Content-Type': 'application/json',
-  'LinkedIn-Version': '202401',
-  'X-Restli-Protocol-Version': '2.0.0',
-})
 
 export interface LinkedInTokens {
   access_token: string
@@ -81,22 +75,23 @@ export function clearLinkedInTokens(): void {
   localStorage.removeItem(STORAGE_KEY)
 }
 
-// ── Fetch person ID on demand ─────────────────────────────────────────────────
+// ── Fetch person ID on demand via Lambda ──────────────────────────────────────
 
 async function resolvePersonId(tokens: LinkedInTokens): Promise<string> {
   if (tokens.person_id) return tokens.person_id
 
-  const meRes = await fetch('https://api.linkedin.com/v2/userinfo', {
-    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  const res = await fetch(`${API_BASE}/linkedin/userinfo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token }),
   })
-  if (!meRes.ok) throw new Error('Could not fetch LinkedIn profile — please reconnect')
-  const me = await meRes.json()
-  const id = me.sub
-  if (!id) throw new Error('LinkedIn profile ID missing — please reconnect')
+  if (!res.ok) throw new Error('Could not fetch LinkedIn profile — please reconnect')
+  const me = await res.json()
+  if (!me.sub) throw new Error('LinkedIn profile ID missing — please reconnect')
 
-  const updated = { ...tokens, person_id: id, person_name: me.name }
+  const updated = { ...tokens, person_id: me.sub, person_name: me.name }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  return id
+  return me.sub
 }
 
 // ── Text post ────────────────────────────────────────────────────────────────
@@ -106,25 +101,15 @@ export async function postToLinkedIn(text: string): Promise<string> {
   if (!tokens) throw new Error('LinkedIn not connected — reconnect')
   const personId = await resolvePersonId(tokens)
 
-  const res = await fetch('https://api.linkedin.com/rest/posts', {
+  const res = await fetch(`${API_BASE}/linkedin/post`, {
     method: 'POST',
-    headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({
-      author: `urn:li:person:${personId}`,
-      commentary: text,
-      visibility: 'PUBLIC',
-      distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
-      lifecycleState: 'PUBLISHED',
-      isReshareDisabledByAuthor: false,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token, person_id: personId, text }),
   })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.message ?? `LinkedIn post failed (${res.status})`)
-  }
-  const postId = res.headers.get('x-restli-id') ?? ''
-  return `https://www.linkedin.com/feed/update/${postId}`
+  const data = await res.json()
+  if (!res.ok || data.error) throw new Error(data.error ?? `LinkedIn post failed (${res.status})`)
+  return data.post_url ?? 'https://www.linkedin.com/feed/'
 }
 
 // ── Image post ───────────────────────────────────────────────────────────────
@@ -138,20 +123,20 @@ export async function postImageToLinkedIn(
   if (!tokens) throw new Error('LinkedIn not connected — reconnect')
   const personId = await resolvePersonId(tokens)
 
-  // Step 1: Initialize image upload
-  const initRes = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', {
+  // Step 1: Initialize image upload via Lambda
+  const initRes = await fetch(`${API_BASE}/linkedin/image-init`, {
     method: 'POST',
-    headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({ initializeUploadRequest: { owner: `urn:li:person:${personId}` } }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token, person_id: personId }),
   })
-  if (!initRes.ok) throw new Error('Failed to initialize image upload')
   const initData = await initRes.json()
-  const { uploadUrl, image: imageUrn } = initData.value
+  if (!initRes.ok || initData.error) throw new Error(initData.error ?? 'Failed to initialize image upload')
+  const { upload_url, image_urn } = initData
 
   onProgress?.(20)
 
-  // Step 2: Upload image binary
-  await fetch(uploadUrl, {
+  // Step 2: Upload image directly to LinkedIn storage URL
+  await fetch(upload_url, {
     method: 'PUT',
     headers: { 'Content-Type': file.type },
     body: file,
@@ -159,29 +144,18 @@ export async function postImageToLinkedIn(
 
   onProgress?.(70)
 
-  // Step 3: Create post with image
-  const postRes = await fetch('https://api.linkedin.com/rest/posts', {
+  // Step 3: Create post via Lambda
+  const postRes = await fetch(`${API_BASE}/linkedin/post`, {
     method: 'POST',
-    headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({
-      author: `urn:li:person:${personId}`,
-      commentary: text,
-      visibility: 'PUBLIC',
-      distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
-      content: { media: { id: imageUrn } },
-      lifecycleState: 'PUBLISHED',
-      isReshareDisabledByAuthor: false,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token, person_id: personId, text, media_id: image_urn }),
   })
 
-  if (!postRes.ok) {
-    const err = await postRes.json().catch(() => ({}))
-    throw new Error(err.message ?? `LinkedIn image post failed (${postRes.status})`)
-  }
+  const postData = await postRes.json()
+  if (!postRes.ok || postData.error) throw new Error(postData.error ?? 'LinkedIn image post failed')
 
   onProgress?.(100)
-  const postId = postRes.headers.get('x-restli-id') ?? ''
-  return `https://www.linkedin.com/feed/update/${postId}`
+  return postData.post_url ?? 'https://www.linkedin.com/feed/'
 }
 
 // ── Video post ───────────────────────────────────────────────────────────────
@@ -195,72 +169,51 @@ export async function postVideoToLinkedIn(
   if (!tokens) throw new Error('LinkedIn not connected — reconnect')
   const personId = await resolvePersonId(tokens)
 
-  // Step 1: Initialize video upload
-  const initRes = await fetch('https://api.linkedin.com/rest/videos?action=initializeUpload', {
+  // Step 1: Initialize video upload via Lambda
+  const initRes = await fetch(`${API_BASE}/linkedin/video-init`, {
     method: 'POST',
-    headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({
-      initializeUploadRequest: {
-        owner: `urn:li:person:${personId}`,
-        fileSizeBytes: file.size,
-        uploadCaptions: false,
-        uploadThumbnail: false,
-      },
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token, person_id: personId, file_size: file.size }),
   })
-  if (!initRes.ok) throw new Error('Failed to initialize video upload')
   const initData = await initRes.json()
-  const { uploadInstructions, video: videoUrn } = initData.value
+  if (!initRes.ok || initData.error) throw new Error(initData.error ?? 'Failed to initialize video upload')
+  const { upload_instructions, video_urn } = initData
 
   onProgress?.(10)
 
-  // Step 2: Upload each chunk
-  const etags: { partNumber: number; eTag: string }[] = []
-  for (let i = 0; i < uploadInstructions.length; i++) {
-    const { uploadUrl, firstByte, lastByte, partNumber } = uploadInstructions[i]
+  // Step 2: Upload chunks directly to LinkedIn storage URLs
+  const etags: string[] = []
+  for (let i = 0; i < upload_instructions.length; i++) {
+    const { uploadUrl, firstByte, lastByte } = upload_instructions[i]
     const chunk = file.slice(firstByte, lastByte + 1)
     const uploadRes = await fetch(uploadUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: chunk,
     })
-    const eTag = uploadRes.headers.get('ETag') ?? ''
-    etags.push({ partNumber, eTag })
-    onProgress?.(10 + Math.round(((i + 1) / uploadInstructions.length) * 60))
+    etags.push(uploadRes.headers.get('ETag') ?? '')
+    onProgress?.(10 + Math.round(((i + 1) / upload_instructions.length) * 60))
   }
 
-  // Step 3: Finalize upload
-  await fetch('https://api.linkedin.com/rest/videos?action=finalizeUpload', {
+  // Step 3: Finalize via Lambda
+  await fetch(`${API_BASE}/linkedin/video-finalize`, {
     method: 'POST',
-    headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({
-      finalizeUploadRequest: { video: videoUrn, uploadToken: '', uploadedPartIds: etags.map(e => e.eTag) },
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token, video_urn, etags }),
   })
 
   onProgress?.(80)
 
-  // Step 4: Create post with video
-  const postRes = await fetch('https://api.linkedin.com/rest/posts', {
+  // Step 4: Create post via Lambda
+  const postRes = await fetch(`${API_BASE}/linkedin/post`, {
     method: 'POST',
-    headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({
-      author: `urn:li:person:${personId}`,
-      commentary: text,
-      visibility: 'PUBLIC',
-      distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
-      content: { media: { id: videoUrn } },
-      lifecycleState: 'PUBLISHED',
-      isReshareDisabledByAuthor: false,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: tokens.access_token, person_id: personId, text, media_id: video_urn }),
   })
 
-  if (!postRes.ok) {
-    const err = await postRes.json().catch(() => ({}))
-    throw new Error(err.message ?? `LinkedIn video post failed (${postRes.status})`)
-  }
+  const postData = await postRes.json()
+  if (!postRes.ok || postData.error) throw new Error(postData.error ?? 'LinkedIn video post failed')
 
   onProgress?.(100)
-  const postId = postRes.headers.get('x-restli-id') ?? ''
-  return `https://www.linkedin.com/feed/update/${postId}`
+  return postData.post_url ?? 'https://www.linkedin.com/feed/'
 }
