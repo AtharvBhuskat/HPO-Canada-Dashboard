@@ -81,17 +81,36 @@ export function clearLinkedInTokens(): void {
   localStorage.removeItem(STORAGE_KEY)
 }
 
+// ── Fetch person ID on demand ─────────────────────────────────────────────────
+
+async function resolvePersonId(tokens: LinkedInTokens): Promise<string> {
+  if (tokens.person_id) return tokens.person_id
+
+  const meRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  })
+  if (!meRes.ok) throw new Error('Could not fetch LinkedIn profile — please reconnect')
+  const me = await meRes.json()
+  const id = me.sub
+  if (!id) throw new Error('LinkedIn profile ID missing — please reconnect')
+
+  const updated = { ...tokens, person_id: id, person_name: me.name }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+  return id
+}
+
 // ── Text post ────────────────────────────────────────────────────────────────
 
 export async function postToLinkedIn(text: string): Promise<string> {
   const tokens = getLinkedInTokens()
-  if (!tokens?.person_id) throw new Error('LinkedIn not connected — reconnect')
+  if (!tokens) throw new Error('LinkedIn not connected — reconnect')
+  const personId = await resolvePersonId(tokens)
 
   const res = await fetch('https://api.linkedin.com/rest/posts', {
     method: 'POST',
     headers: LI_HEADERS(tokens.access_token),
     body: JSON.stringify({
-      author: `urn:li:person:${tokens.person_id}`,
+      author: `urn:li:person:${personId}`,
       commentary: text,
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
@@ -116,13 +135,14 @@ export async function postImageToLinkedIn(
   onProgress?: (pct: number) => void
 ): Promise<string> {
   const tokens = getLinkedInTokens()
-  if (!tokens?.person_id) throw new Error('LinkedIn not connected — reconnect')
+  if (!tokens) throw new Error('LinkedIn not connected — reconnect')
+  const personId = await resolvePersonId(tokens)
 
   // Step 1: Initialize image upload
   const initRes = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', {
     method: 'POST',
     headers: LI_HEADERS(tokens.access_token),
-    body: JSON.stringify({ initializeUploadRequest: { owner: `urn:li:person:${tokens.person_id}` } }),
+    body: JSON.stringify({ initializeUploadRequest: { owner: `urn:li:person:${personId}` } }),
   })
   if (!initRes.ok) throw new Error('Failed to initialize image upload')
   const initData = await initRes.json()
@@ -144,7 +164,7 @@ export async function postImageToLinkedIn(
     method: 'POST',
     headers: LI_HEADERS(tokens.access_token),
     body: JSON.stringify({
-      author: `urn:li:person:${tokens.person_id}`,
+      author: `urn:li:person:${personId}`,
       commentary: text,
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
@@ -172,7 +192,8 @@ export async function postVideoToLinkedIn(
   onProgress?: (pct: number) => void
 ): Promise<string> {
   const tokens = getLinkedInTokens()
-  if (!tokens?.person_id) throw new Error('LinkedIn not connected — reconnect')
+  if (!tokens) throw new Error('LinkedIn not connected — reconnect')
+  const personId = await resolvePersonId(tokens)
 
   // Step 1: Initialize video upload
   const initRes = await fetch('https://api.linkedin.com/rest/videos?action=initializeUpload', {
@@ -180,7 +201,7 @@ export async function postVideoToLinkedIn(
     headers: LI_HEADERS(tokens.access_token),
     body: JSON.stringify({
       initializeUploadRequest: {
-        owner: `urn:li:person:${tokens.person_id}`,
+        owner: `urn:li:person:${personId}`,
         fileSizeBytes: file.size,
         uploadCaptions: false,
         uploadThumbnail: false,
@@ -224,7 +245,7 @@ export async function postVideoToLinkedIn(
     method: 'POST',
     headers: LI_HEADERS(tokens.access_token),
     body: JSON.stringify({
-      author: `urn:li:person:${tokens.person_id}`,
+      author: `urn:li:person:${personId}`,
       commentary: text,
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
