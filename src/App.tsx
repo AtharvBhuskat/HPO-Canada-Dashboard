@@ -12,6 +12,8 @@ import YouTubeCallback from './pages/YouTubeCallback'
 import FacebookCallback from './pages/FacebookCallback'
 import TikTokCallback from './pages/TikTokCallback'
 import LinkedInCallback from './pages/LinkedInCallback'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import TermsOfService from './pages/TermsOfService'
 
 export default function App() {
   return (
@@ -22,6 +24,10 @@ export default function App() {
         <Route path="/auth/facebook" element={<FacebookCallback />} />
         <Route path="/auth/tiktok" element={<TikTokCallback />} />
         <Route path="/auth/linkedin" element={<LinkedInCallback />} />
+
+        {/* Public legal pages — no sidebar */}
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
 
         {/* Main app — with sidebar */}
         <Route path="*" element={
