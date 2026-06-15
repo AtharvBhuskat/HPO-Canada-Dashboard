@@ -1,7 +1,7 @@
 import client from './client'
 import type {
   ContentItem, ContentStatus, ContentType,
-  Lead, Thread, SocialAccount, ScheduledPost, ListResponse, Platform,
+  Lead, Thread, SentEmail, SocialAccount, ScheduledPost, ListResponse, Platform,
 } from '../types'
 
 // Content
@@ -42,6 +42,15 @@ export const getThread = (threadId: string) =>
 
 export const replyToThread = (threadId: string, text: string) =>
   client.post(`/inbox/${threadId}/reply`, { text }).then(r => r.data)
+
+export const markThreadRead = (threadId: string) =>
+  client.patch(`/inbox/${threadId}/read`).then(r => r.data)
+
+export const sendEmail = (data: { to: string; subject: string; body: string }) =>
+  client.post('/inbox/send', data).then(r => r.data)
+
+export const getSentEmails = () =>
+  client.get<ListResponse<SentEmail>>('/inbox/sent').then(r => r.data)
 
 // Social
 export const getSocialAccounts = () =>

@@ -61,6 +61,14 @@ export interface ScheduledPost {
   status: 'pending' | 'posted' | 'cancelled' | 'failed'
 }
 
+export interface SentEmail {
+  id: string
+  to_email: string
+  subject: string
+  body: string
+  sent_at: string
+}
+
 export interface ListResponse<T> {
   items: T[]
   count: number
