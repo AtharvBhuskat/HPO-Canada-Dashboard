@@ -20,7 +20,6 @@ export default function Inbox() {
   const [sending, setSending] = useState(false)
   const [search, setSearch] = useState('')
   const [compose, setCompose] = useState({ to: '', subject: '', body: '' })
-  const [composing, setComposing] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const unreadCount = threads.filter(t => t.unread).length
