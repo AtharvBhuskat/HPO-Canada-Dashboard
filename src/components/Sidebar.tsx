@@ -124,6 +124,10 @@ export default function Sidebar() {
 
       <div className="px-6 py-4 border-t border-[#1e1e1e]">
         <p className="text-zinc-600 text-xs">marketing@hpocanada.com</p>
+        <div className="flex gap-3 mt-2">
+          <a href="/privacy" target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Privacy</a>
+          <a href="/terms" target="_blank" rel="noreferrer" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Terms</a>
+        </div>
       </div>
     </aside>
   )
