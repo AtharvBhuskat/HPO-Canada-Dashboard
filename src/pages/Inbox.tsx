@@ -173,12 +173,14 @@ export default function Inbox() {
                 }`}
               >
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className={`text-xs truncate text-zinc-500`}>{t.contact_email}</span>
+                  <span className={`text-sm truncate ${t.unread ? 'font-semibold text-white' : 'text-zinc-300'}`}>
+                    {t.contact_name && t.contact_name !== t.contact_email ? t.contact_name : t.contact_email.split('@')[1] ?? t.contact_email}
+                  </span>
                   <span className="text-[11px] text-zinc-600 flex-shrink-0 ml-2">
                     {t.last_reply_at ? dayjs(t.last_reply_at).fromNow() : ''}
                   </span>
                 </div>
-                <p className={`text-sm truncate mb-0.5 ${t.unread ? 'font-semibold text-white' : 'text-zinc-300'}`}>{t.subject}</p>
+                <p className={`text-xs truncate mb-0.5 ${t.unread ? 'text-zinc-300' : 'text-zinc-500'}`}>{t.subject}</p>
                 <div className="flex items-center gap-1.5">
                   {t.unread && <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />}
                 </div>
@@ -310,7 +312,7 @@ export default function Inbox() {
                 <p className="text-zinc-600 text-sm text-center pt-8">No messages yet</p>
               ) : (
                 (selected.messages ?? []).map((msg: Message, i: number) => {
-                  const isHtml = /<[a-z][\s\S]*>/i.test(msg.body)
+                  const isHtml = msg.is_html || /<[a-z][\s\S]*>/i.test(msg.body)
                   return (
                     <div key={msg.id || i} className={msg.direction === 'outbound' ? 'flex justify-end' : ''}>
                       {msg.direction === 'outbound' ? (

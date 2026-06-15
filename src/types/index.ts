@@ -41,6 +41,7 @@ export interface Message {
   id: string
   from: string
   body: string
+  is_html?: boolean
   sent_at: string
   direction: 'inbound' | 'outbound'
 }
