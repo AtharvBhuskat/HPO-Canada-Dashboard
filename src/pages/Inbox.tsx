@@ -173,17 +173,14 @@ export default function Inbox() {
                 }`}
               >
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className={`text-sm truncate ${t.unread ? 'font-semibold text-white' : 'text-zinc-300'}`}>
-                    {t.contact_name || t.contact_email}
-                  </span>
+                  <span className={`text-xs truncate text-zinc-500`}>{t.contact_email}</span>
                   <span className="text-[11px] text-zinc-600 flex-shrink-0 ml-2">
                     {t.last_reply_at ? dayjs(t.last_reply_at).fromNow() : ''}
                   </span>
                 </div>
-                <p className={`text-xs truncate mb-0.5 ${t.unread ? 'text-zinc-300' : 'text-zinc-500'}`}>{t.subject}</p>
+                <p className={`text-sm truncate mb-0.5 ${t.unread ? 'font-semibold text-white' : 'text-zinc-300'}`}>{t.subject}</p>
                 <div className="flex items-center gap-1.5">
                   {t.unread && <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />}
-                  <span className="text-[11px] text-zinc-600 truncate">{t.contact_email}</span>
                 </div>
               </button>
             ))
@@ -296,11 +293,8 @@ export default function Inbox() {
         {selected && (
           <>
             <div className="px-6 py-4 border-b border-[#1e1e1e] flex-shrink-0">
-              <h2 className="text-white font-semibold text-xl">{selected.subject}</h2>
-              <div className="flex items-center gap-3 mt-1.5 text-xs text-zinc-500">
-                <span className="text-zinc-300">{selected.contact_name}</span>
-                <span>&lt;{selected.contact_email}&gt;</span>
-              </div>
+              <h2 className="text-white font-semibold text-lg leading-snug">{selected.subject}</h2>
+              <p className="text-xs text-zinc-500 mt-1">From: <span className="text-zinc-300">{selected.contact_email}</span></p>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
@@ -315,21 +309,46 @@ export default function Inbox() {
               ) : (selected.messages ?? []).length === 0 ? (
                 <p className="text-zinc-600 text-sm text-center pt-8">No messages yet</p>
               ) : (
-                (selected.messages ?? []).map((msg: Message, i: number) => (
-                  <div key={msg.id || i} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : ''}`}>
-                    <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${
-                      msg.direction === 'outbound'
-                        ? 'bg-red-600/20 border border-red-600/30'
-                        : 'bg-[#1a1a1a] border border-[#2a2a2a]'
-                    }`}>
-                      <p className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">{msg.body}</p>
-                      <p className="text-[11px] text-zinc-600 mt-1.5">
-                        {msg.sent_at ? dayjs(msg.sent_at).format('MMM D, h:mm A') : ''}
-                        {msg.direction === 'outbound' && <span className="ml-2 text-zinc-700">· You</span>}
-                      </p>
+                (selected.messages ?? []).map((msg: Message, i: number) => {
+                  const isHtml = /<[a-z][\s\S]*>/i.test(msg.body)
+                  return (
+                    <div key={msg.id || i} className={msg.direction === 'outbound' ? 'flex justify-end' : ''}>
+                      {msg.direction === 'outbound' ? (
+                        <div className="max-w-[70%] rounded-2xl px-4 py-3 bg-red-600/20 border border-red-600/30">
+                          <p className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">{msg.body}</p>
+                          <p className="text-[11px] text-zinc-600 mt-1.5">
+                            {msg.sent_at ? dayjs(msg.sent_at).format('MMM D, h:mm A') : ''} · You
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="w-full rounded-xl border border-[#2a2a2a] overflow-hidden">
+                          {isHtml ? (
+                            <iframe
+                              srcDoc={msg.body}
+                              sandbox="allow-same-origin"
+                              className="w-full bg-white"
+                              style={{ minHeight: '300px', height: 'auto', border: 'none' }}
+                              onLoad={e => {
+                                const iframe = e.currentTarget
+                                const h = iframe.contentDocument?.documentElement?.scrollHeight
+                                if (h) iframe.style.height = h + 'px'
+                              }}
+                            />
+                          ) : (
+                            <div className="px-4 py-3 bg-[#1a1a1a]">
+                              <p className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap">{msg.body}</p>
+                            </div>
+                          )}
+                          <div className="px-4 py-2 bg-[#111] border-t border-[#2a2a2a]">
+                            <p className="text-[11px] text-zinc-600">
+                              {msg.sent_at ? dayjs(msg.sent_at).format('MMM D, h:mm A') : ''}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
               <div ref={bottomRef} />
             </div>
