@@ -327,13 +327,18 @@ export default function Inbox() {
                           {isHtml ? (
                             <iframe
                               srcDoc={msg.body}
-                              sandbox="allow-same-origin"
+                              sandbox="allow-same-origin allow-popups"
+                              title="email"
                               className="w-full bg-white"
-                              style={{ minHeight: '300px', height: 'auto', border: 'none' }}
+                              style={{ height: '520px', border: 'none', display: 'block' }}
                               onLoad={e => {
-                                const iframe = e.currentTarget
-                                const h = iframe.contentDocument?.documentElement?.scrollHeight
-                                if (h) iframe.style.height = h + 'px'
+                                try {
+                                  const doc = e.currentTarget.contentDocument
+                                  if (doc) {
+                                    const h = doc.documentElement.scrollHeight || doc.body?.scrollHeight
+                                    if (h && h > 100) e.currentTarget.style.height = Math.min(h + 20, 1200) + 'px'
+                                  }
+                                } catch { /* cross-origin safety */ }
                               }}
                             />
                           ) : (
