@@ -87,6 +87,7 @@ export async function uploadVideoToTikTok(
   if (!tokens) throw new Error('TikTok not connected')
 
   const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE))
+  const chunkSize = totalChunks === 1 ? file.size : CHUNK_SIZE
 
   // Step 1: Initialize upload via Lambda proxy (avoids CORS)
   const initRes = await fetch(`${API_BASE}/tiktok/upload-init`, {
@@ -96,7 +97,7 @@ export async function uploadVideoToTikTok(
       access_token: tokens.access_token,
       title: title.slice(0, 150),
       video_size: file.size,
-      chunk_size: CHUNK_SIZE,
+      chunk_size: chunkSize,
       total_chunk_count: totalChunks,
     }),
   })
@@ -110,8 +111,8 @@ export async function uploadVideoToTikTok(
 
   // Step 2: Upload chunks directly to cloud storage URL
   for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE
-    const end = Math.min(start + CHUNK_SIZE, file.size)
+    const start = i * chunkSize
+    const end = Math.min(start + chunkSize, file.size)
     const chunk = file.slice(start, end)
 
     await fetch(upload_url, {
