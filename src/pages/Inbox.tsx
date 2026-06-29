@@ -101,7 +101,7 @@ export default function Inbox() {
   )
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] overflow-hidden">
+    <div className="fixed inset-0 left-60 bg-[#0a0a0a] flex overflow-hidden">
 
       {/* ── Left sidebar ─────────────────────────────────────────────── */}
       <div className="w-48 flex-shrink-0 flex flex-col border-r border-[#1e1e1e] bg-[#111111] pt-6 pb-4">
@@ -174,7 +174,7 @@ export default function Inbox() {
               >
                 <div className="flex items-center justify-between mb-0.5">
                   <span className={`text-sm truncate ${t.unread ? 'font-semibold text-white' : 'text-zinc-300'}`}>
-                    {t.contact_name && t.contact_name !== t.contact_email ? t.contact_name : t.contact_email.split('@')[1] ?? t.contact_email}
+                    {t.contact_name && t.contact_name !== t.contact_email ? t.contact_name : (t.contact_email ?? '').split('@')[1] || t.contact_email || 'Unknown'}
                   </span>
                   <span className="text-[11px] text-zinc-600 flex-shrink-0 ml-2">
                     {t.last_reply_at ? dayjs(t.last_reply_at).fromNow() : ''}
