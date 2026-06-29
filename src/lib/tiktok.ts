@@ -1,6 +1,7 @@
 const CLIENT_KEY = import.meta.env.VITE_TIKTOK_CLIENT_KEY as string
 const CLIENT_SECRET = import.meta.env.VITE_TIKTOK_CLIENT_SECRET as string
 const REDIRECT_URI = `${window.location.origin}/auth/tiktok`
+const API_BASE = import.meta.env.VITE_API_BASE_URL as string
 
 const STORAGE_KEY = 'tiktok_tokens'
 const CHUNK_SIZE = 5 * 1024 * 1024 // 5MB
@@ -87,28 +88,16 @@ export async function uploadVideoToTikTok(
 
   const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE))
 
-  // Step 1: Initialize upload
-  const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+  // Step 1: Initialize upload via Lambda proxy (avoids CORS)
+  const initRes = await fetch(`${API_BASE}/tiktok/upload-init`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${tokens.access_token}`,
-      'Content-Type': 'application/json; charset=UTF-8',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      post_info: {
-        title: title.slice(0, 150),
-        privacy_level: 'PUBLIC_TO_EVERYONE',
-        disable_duet: false,
-        disable_comment: false,
-        disable_stitch: false,
-        video_cover_timestamp_ms: 1000,
-      },
-      source_info: {
-        source: 'FILE_UPLOAD',
-        video_size: file.size,
-        chunk_size: CHUNK_SIZE,
-        total_chunk_count: totalChunks,
-      },
+      access_token: tokens.access_token,
+      title: title.slice(0, 150),
+      video_size: file.size,
+      chunk_size: CHUNK_SIZE,
+      total_chunk_count: totalChunks,
     }),
   })
 
@@ -143,13 +132,10 @@ export async function uploadVideoToTikTok(
   for (let attempt = 0; attempt < 15; attempt++) {
     await new Promise(r => setTimeout(r, 2000))
 
-    const statusRes = await fetch('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+    const statusRes = await fetch(`${API_BASE}/tiktok/upload-status`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: JSON.stringify({ publish_id }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: tokens.access_token, publish_id }),
     })
 
     const statusData = await statusRes.json()
